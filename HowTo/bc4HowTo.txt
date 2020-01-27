@@ -1,0 +1,94 @@
+________________________________________________________________________
+Access bc4
+________________________________________________________________________
+ssh bc4
+
+or when not in uni:
+ssh bc4-external
+
+
+
+________________________________________________________________________
+How to copy files back-and-forth
+________________________________________________________________________
+Copy to bc4 - this would copy fileA and fileB to bc4	
+scp fileA fileB bc4:
+scp fileA bc4:~/deepLearning/1lab/
+
+Copy from bc4 - this would copy folder lab-1 to logs on my computer
+scp -r bc4:~/adl/lab-1/ logs
+
+
+
+
+
+-- makes executable:
+chmod +x train.sh train_mnist.py 
+-- load libraries
+module load languages/anaconda3/2019.07-3.6.5-tflow-1.14
+
+
+
+________________________________________________________________________
+How to reserve GPU
+________________________________________________________________________
+srun --partition gpu --gres gpu:1 --account comsm0018 --time 0-00:15 --mem=64GB --reservation comsm0018-lab1 --pty bash
+
+srun --partition gpu --gres gpu:1 --time 0-00:15 --mem=64GB --pty bash
+
+
+
+
+________________________________________________________________________
+How to queue:
+________________________________________________________________________
+
+For example:
+Use this in sh file:
+and it will run train_cifar.py
+
+
+#!/usr/bin/env bash
+#SBATCH --partition gpu
+#SBATCH --time 0-00:30
+#SBATCH --account comsm0018
+#SBATCH --reservation comsm0018-lab2
+#SBATCH --mem 64GB
+#SBATCH --gres gpu:1
+
+# get rid of any modules already loaded
+module purge
+# load in the module dependencies for this script
+module load "languages/anaconda3/2019.07-3.6.5-tflow-1.14"
+
+python train_cifar.py
+
+
+_________________
+then in bc4:
+[bc4] $ sbatch train_cifar.sh # create a new job using the job script
+[bc4] $ squeue --user $USER # list the queued and running jobs owned by me
+
+
+Once the job starts running, it will ouptut to a file with the name slurm-<jobid>.out.
+This will be interactive, and so you can watch the results of your code as it runs:
+[bc4] $ tail -f slurm-<jobid>.out
+press ctrl-c to quit tail
+or use cat...
+
+Remove reservation if not in the lab
+
+
+
+________________________________________________________________________
+Tensorboard:
+________________________________________________________________________
+[bc4-compute-node] $ PORT=$((($UID-6025) % 65274))  # compute a unique port and save to the PORT env var
+[bc4-compute-node] $ echo $PORT  # echo the PORT env var to the console so you can see what it is
+<PORT>
+[bc4-compute-node] $ hostname -s  # get hostname of compute node.
+<HOSTNAME>
+[bc4-compute-node] $ cd ~/lab2-code  # change the working directory to where the tensorboard logs are stored
+[bc4-compute-node] $ module load "languages/anaconda3/2019.07-3.6.5-tflow-1.14"
+[bc4-compute-node] $ tensorboard --logdir logs --port "$PORT"  # run the tensorboard server on the port stored in the PORT env var
+TensorBoard 1.14.0 at http://<HOSTNAME>.bc4.acrc.priv:<PORT>/ (Press CTRL+C to quit)
