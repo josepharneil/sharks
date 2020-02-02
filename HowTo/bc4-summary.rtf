@@ -5,44 +5,60 @@
 {\*\expandedcolortbl;;\cssrgb\c100000\c100000\c100000;\cssrgb\c40000\c40000\c40000;}
 {\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid2\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li1440\lin1440 }{\listname ;}\listid1}}
 {\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
-\paperw11900\paperh16840\margl1440\margr1440\vieww19000\viewh20680\viewkind0
+\paperw11900\paperh16840\margl1440\margr1440\vieww10800\viewh8400\viewkind0
 \deftab720
 \pard\pardeftab720\partightenfactor0
 
 \f0\b\fs28 \cf0 \cb2 \expnd0\expndtw0\kerning0
 Log on to BC4 in uni
 \f1 \
+\pard\pardeftab720\partightenfactor0
 
-\f2\b0 ssh bc4\
+\f2\b0 \cf0 ssh bc4\
 \
+\pard\pardeftab720\partightenfactor0
 
-\f0\b Log on to BC4 outside of uni
+\f0\b \cf0 Log on to BC4 outside of uni
 \f1 \
+\pard\pardeftab720\partightenfactor0
 
-\f2\b0 ssh bc4x\
+\f2\b0 \cf0 ssh bc4x\
+\pard\pardeftab720\partightenfactor0
 
-\f3 This is likely different for you
+\f3 \cf0 This is likely different for you
 \f1\b \
 \
 
 \f0 Interactive GPU environment inside uni:
 \f1 \
+\pard\pardeftab720\partightenfactor0
 
-\f2\b0 srun --partition gpu --gres gpu:1 --account comsm0018 --time 0-00:15 --mem\cf3 =\cf0 64GB --pty bash
+\f2\b0 \cf0 srun --partition gpu --gres gpu:1 --account comsm0018 --time 0-00:15 --mem\cf3 =\cf0 64GB --pty bash\
+\
+srun --partition gpu --gres gpu:1 --account 
+\f3\fs32 \cb1 cosc016282
+\f2\fs28 \cb2  --time 0-00:30 --mem\cf3 =\cf0 64GB --pty bash\
+\
+srun --partition gpu --gres gpu:1 --time 0-00:30 --mem\cf3 =\cf0 64GB --pty bash\
+\
+
 \f1\b \
 
 \f2\b0 \
+\pard\pardeftab720\partightenfactor0
 
-\f3 You need to change the account number to the correct one obviously.\
+\f3 \cf0 You need to change the account number to the correct one obviously.\
 The time you request this interactive GPU for can be changed. Currently it is 15 minutes.\
 \
 
 \f0\b Copy a file over to BC4\
+\pard\pardeftab720\partightenfactor0
 
-\f2\b0 scp fileA bc4:~/deepLearning/1lab/\
+\f2\b0 \cf0 scp fileA bc4:~/deepLearning/1lab/\
 \
+\pard\pardeftab720\partightenfactor0
 
-\f0\b Copy a file from BC4
+\f0\b \cf0 Copy a file from BC4
 \f2\b0 \
 scp -r bc4:~/adl/lab-1/ logs\
 \
@@ -59,18 +75,21 @@ ____________________________________\
 
 \f0\b Queue a file to run
 \f3\b0 \
+\pard\pardeftab720\partightenfactor0
 
-\f2 sbatch batchscript.sh\
+\f2 \cf0 sbatch batchscript.sh\
+\pard\pardeftab720\partightenfactor0
 
-\f3 \
+\f3 \cf0 \
 This queues up some script specified by the batch script batchscript.sh.\
 When you do this, you get a jobid, which will be displayed when you do sbatch. You can also check it with squeue (seen later).\
 Any outputs from your file like a printing will be outputted to a file called <jobid>.out\
 Other outputs output regularly (like saved images go to the normal file locations)\
 \
 The contents of a batch script could be as follows:\
+\pard\pardeftab720\partightenfactor0
 
-\f2 ____________\
+\f2 \cf0 ____________\
 \
 #!/usr/bin/env bash\
 #SBATCH --partition gpu\
@@ -88,8 +107,9 @@ module load "languages/anaconda3/2019.07-3.6.5-tflow-1.14"\
 python trainScript.py\
 \
 ____________\
+\pard\pardeftab720\partightenfactor0
 
-\f3 It specifies that:\
+\f3 \cf0 It specifies that:\
 \pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
 \ls1\ilvl0\cf0 \kerning1\expnd0\expndtw0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
 We want a GPU\
@@ -99,8 +119,7 @@ We want a GPU\
 \pard\tx220\tx720\tx1440\pardeftab720\li720\fi-720\partightenfactor0
 \ls1\ilvl0\cf0 {\listtext	\uc0\u8226 	}The account (change this to be correct!)\
 {\listtext	\uc0\u8226 	}Mail-type emails you in the case specified. END is whenever it finishes running (finished, or failed)\
-\pard\tx220\tx720\tx1440\pardeftab720\li720\fi-720\partightenfactor0
-\ls1\ilvl0\cf0 {\listtext	\uc0\u8226 	}The memory (dunno what this does really)\
+{\listtext	\uc0\u8226 	}The memory (dunno what this does really)\
 {\listtext	\uc0\u8226 	}The gpu?? (dunno what this does really)\
 \pard\tx720\tx1440\pardeftab720\partightenfactor0
 \cf0 \
@@ -117,8 +136,9 @@ It finally executes the command \'93python trainScript.py\'94, which is just lik
 
 \f2 \cf0 \expnd0\expndtw0\kerning0
 squeue --user ja16475\
+\pard\pardeftab720\partightenfactor0
 
-\f3 \kerning1\expnd0\expndtw0 \
+\f3 \cf0 \kerning1\expnd0\expndtw0 \
 \pard\tx720\tx1440\pardeftab720\partightenfactor0
 \cf0 This would show ja16475\'92s current jobs queued up, and their status\
 \
