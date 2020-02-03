@@ -5,7 +5,7 @@
 {\*\expandedcolortbl;;\cssrgb\c100000\c100000\c100000;\cssrgb\c40000\c40000\c40000;}
 {\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid2\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li1440\lin1440 }{\listname ;}\listid1}}
 {\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
-\paperw11900\paperh16840\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\paperw11900\paperh16840\margl1440\margr1440\vieww19000\viewh21200\viewkind0
 \deftab720
 \pard\pardeftab720\partightenfactor0
 
@@ -28,8 +28,9 @@ Log on to BC4 in uni
 \f3 \cf0 This is likely different for you
 \f1\b \
 \
+\pard\pardeftab720\partightenfactor0
 
-\f0 Interactive GPU environment inside uni:
+\f0 \cf0 Interactive GPU environment inside uni:
 \f1 \
 \pard\pardeftab720\partightenfactor0
 
@@ -50,8 +51,9 @@ srun --partition gpu --gres gpu:1 --time 0-00:30 --mem\cf3 =\cf0 64GB --pty bash
 \f3 \cf0 You need to change the account number to the correct one obviously.\
 The time you request this interactive GPU for can be changed. Currently it is 15 minutes.\
 \
+\pard\pardeftab720\partightenfactor0
 
-\f0\b Copy a file over to BC4\
+\f0\b \cf0 Copy a file over to BC4\
 \pard\pardeftab720\partightenfactor0
 
 \f2\b0 \cf0 scp fileA bc4:~/deepLearning/1lab/\
@@ -62,13 +64,15 @@ The time you request this interactive GPU for can be changed. Currently it is 15
 \f2\b0 \
 scp -r bc4:~/adl/lab-1/ logs\
 \
+\pard\pardeftab720\partightenfactor0
 
-\f3 Note that you add the -r if you are copying a folder, ie \'93recursive\'94\
+\f3 \cf0 Note that you add the -r if you are copying a folder, ie \'93recursive\'94\
 \
 \
 ____________________________________\
+\pard\pardeftab720\partightenfactor0
 
-\f0\b \
+\f0\b \cf0 \
 			Queuing
 \f3\b0 \
 ____________________________________\
@@ -83,13 +87,18 @@ ____________________________________\
 \f3 \cf0 \
 This queues up some script specified by the batch script batchscript.sh.\
 When you do this, you get a jobid, which will be displayed when you do sbatch. You can also check it with squeue (seen later).\
-Any outputs from your file like a printing will be outputted to a file called <jobid>.out\
+Any outputs from your file like a printing will be outputted to a file called slurm-<jobid>.out\
 Other outputs output regularly (like saved images go to the normal file locations)\
 \
-The contents of a batch script could be as follows:\
+You can track the output by typing:\
 \pard\pardeftab720\partightenfactor0
 
-\f2 \cf0 ____________\
+\f2 \cf0 tail -f slurm-<jobid>.out
+\f3 \
+\
+The contents of a batch script could be as follows:\
+
+\f2 ____________\
 \
 #!/usr/bin/env bash\
 #SBATCH --partition gpu\
@@ -141,6 +150,15 @@ squeue --user ja16475\
 \f3 \cf0 \kerning1\expnd0\expndtw0 \
 \pard\tx720\tx1440\pardeftab720\partightenfactor0
 \cf0 This would show ja16475\'92s current jobs queued up, and their status\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2 \cf0 \expnd0\expndtw0\kerning0
+squeue --partition gpu
+\f3 \kerning1\expnd0\expndtw0 \
+\pard\tx720\tx1440\pardeftab720\partightenfactor0
+\cf0 \
+This would show the jobs queued for the GPU\
 \
 \
 
