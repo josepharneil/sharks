@@ -525,5 +525,7 @@ jobName = text_file.read()
 jobName = jobName[20:len(jobName)-1]
 # Create the file name
 filename = "slurm-"+jobName+".out"
-# Move the file
-shutil.move("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+# Copy the file
+shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+# Delete the original 
+os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
