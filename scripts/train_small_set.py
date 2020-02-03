@@ -421,7 +421,7 @@ print("Number of classes: ",cfg.MODEL.RETINANET.NUM_CLASSES)
 
 OutputString = "\nDate time: \t"    + dateTime \
              + "\n________________________________________________________" \
-             + "\n\Model being used: \t" + modelLink \
+             + "\nModel being used: \t" + modelLink \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
@@ -451,7 +451,6 @@ cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
 # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7   # set the testing threshold for this model
 # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set the testing threshold for this model
 cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.2
-# cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.25
 cfg.DATASETS.TEST = ("shark_val", )
 # cfg.DATASETS.TEST = ("shark_train", )
 # Create a simple end-to-end predictor with the given config
@@ -461,8 +460,7 @@ predictor = DefaultPredictor(cfg)
 # Visualise:
 # from detectron2.utils.visualizer import ColorMode
 # dataset_dicts = getSharkTrainDicts()
-dataset_dicts = getSharkValDicts() #getSharkDicts("/content/drive/My Drive/sharkdata/all_data/val")
-# for dictionary in random.sample(dataset_dicts, 12):
+dataset_dicts = getSharkValDicts()
 for dictionary in random.sample(dataset_dicts, 12):
   im = cv2.imread(dictionary["file_name"])
   outputs = predictor(im)
@@ -522,17 +520,14 @@ from detectron2.evaluation import COCOEvaluator, inference_on_dataset
 from detectron2.evaluation import DatasetEvaluator
 from detectron2.data import build_detection_test_loader
 # Get the coco evaluator
-evaluator = COCOEvaluator("shark_val", cfg, False, output_dir=cfg.OUTPUT_DIR+"/")
-# evaluator = COCOEvaluator("shark_train", cfg, False, output_dir="./output/")
-
+cocoEvaluator = COCOEvaluator("shark_val", cfg, False, output_dir=cfg.OUTPUT_DIR+"/")
 # The loader for the test data (applies various transformations if we so choose)
 val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
-# val_loader = build_detection_test_loader(cfg, "shark_train")
-
 # Run the model on the data_loader and evaluate the metrics evaluator
 # Also benchmarks the inference speed of model.forward accurately
-inference_on_dataset(trainer.model, val_loader, evaluator)
+inference_on_dataset(trainer.model, val_loader, cocoEvaluator)
 # another equivalent way is to use trainer.test
+
 
 class Top1Accuracy(DatasetEvaluator):
   def reset(self):
@@ -559,6 +554,7 @@ class Top1Accuracy(DatasetEvaluator):
       scores = instances.get("scores")
       scores = scores.cpu()
       scores = scores.numpy()
+      if(len(scores) == 0): break
       # Get the highest scores's indexes (argmax will get a list of indexes for the max score)
       highestScore = np.max(scores)
       highScoreIndexes = []
@@ -603,8 +599,8 @@ print(  "\nTotal Number: \t\t" + total_num \
 # accuracy_string = total_num + 
 
 appendString = "\n________________________________________________________" \
-             + "\nTotal Number: \t\t" + total_num \
              + "\nNumber correct: \t" + num_correct \
+             + "\nTotal Number: \t\t" + total_num \
              + "\nTop 1 Accuracy: \t" + top_1_acc \
              + "\n"
 
@@ -642,9 +638,14 @@ class TopKAccuracy(DatasetEvaluator):
       scores = instances.get("scores")
       scores = scores.cpu()
       scores = scores.numpy()
+      scores = list(scores)
+      if(len(scores) == 0): break
+      # scoresList = []
+      # for sc in scores:
+      #   scoresList.append(sc)
       # Get the highest k scores's indexes
       highScoreIndexesList = []
-      for i in range(0,k):
+      for i in range(0,self.k):
         # Get a list of the indexes of the highest accuracy
         # highScoreIndexes = np.argmax(scores)
         highestScore = np.max(scores)
@@ -660,7 +661,7 @@ class TopKAccuracy(DatasetEvaluator):
           del scores[index]
         
         # If we reach the size the of k early in this loop
-        if(len(highScoreIndexesList) >= k):
+        if(len(highScoreIndexesList) >= self.k):
           # Break
           break
 
@@ -683,39 +684,60 @@ class TopKAccuracy(DatasetEvaluator):
     accuracy = float(self.numberCorrect) / float(self.totalNumber)
     return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k}
 
-myEvaluator = TopKAccuracy(3)
-accuracy_results = inference_on_dataset(trainer.model, val_loader, myEvaluator)
+def EvaluateTopKAccuracy(numK):
+  # Create evaluator object
+  topKEvaluator = TopKAccuracy(numK)
+  # Get the accuracy results
+  accuracy_results = inference_on_dataset(trainer.model, val_loader, topKEvaluator)
+  # Extract results
+  total_num   = str(accuracy_results["total_num"])
+  num_correct = str(accuracy_results["num_correct"])
+  top_k_acc   = str(accuracy_results["accuracy"])
+  k           = str(accuracy_results["k"])
 
-total_num   = str(accuracy_results["total_num"])
-num_correct = str(accuracy_results["num_correct"])
-top_k_acc   = str(accuracy_results["accuracy"])
-k           = str(accuracy_results["k"])
+  # Create the string we're going to add to the text_file
+  appendString = "\n________________________________________________________" \
+               + "\nNumber correct: \t" + num_correct \
+               + "\nTotal Number: \t\t" + total_num \
+               + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+               + "\n"
 
-appendString = "\n________________________________________________________" \
-             + "\nTotal Number: \t\t" + total_num \
-             + "\nNumber correct: \t" + num_correct \
-             + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
-             + "\n"
+  # Append to the file
+  text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+  text_file.write(appendString)
+  text_file.close()
 
-text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
-text_file.write(appendString)
-text_file.close()
-
-print(  "\nTotal Number: \t\t" + total_num \
-      + "\nNumber correct: \t" + num_correct \
-      + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
-      + "\n")
+  # Print the file
+  print(  "\nTotal Number: \t\t" + total_num \
+        + "\nNumber correct: \t" + num_correct \
+        + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+        + "\n\n")
 
 
+# for i in range(1,1):
+# EvaluateTopKAccuracy(1)
+
+for i in range(1,11):
+  EvaluateTopKAccuracy(i)
+
+
+
+
+
+
+### Move the slurm file, if possible ### 
 # Open the file
 text_file = open("jobName", "r")
 # Read it in
 jobName = text_file.read()
-# Extract the jobname
-jobName = jobName[20:len(jobName)-1]
-# Create the file name
-filename = "slurm-"+jobName+".out"
-# Copy the file
-shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-# Delete the original 
-os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
+if(jobName == ""):
+  print("Empty jobName file")
+else:
+  # Extract the jobname
+  jobName = jobName[20:len(jobName)-1]
+  # Create the file name
+  filename = "slurm-"+jobName+".out"
+  # Copy the file
+  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+  # Delete the original 
+  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
