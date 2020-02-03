@@ -528,7 +528,7 @@ val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
 inference_on_dataset(trainer.model, val_loader, cocoEvaluator)
 # another equivalent way is to use trainer.test
 
-
+'''
 class Top1Accuracy(DatasetEvaluator):
   def reset(self):
     self.numberCorrect = 0
@@ -607,7 +607,7 @@ appendString = "\n________________________________________________________" \
 text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
 text_file.write(appendString)
 text_file.close()
-
+'''
 
 
 # k = 1 should be equivalent
@@ -646,6 +646,7 @@ class TopKAccuracy(DatasetEvaluator):
       # Get the highest k scores's indexes
       highScoreIndexesList = []
       for i in range(0,self.k):
+        if(len(scores) == 0): break
         # Get a list of the indexes of the highest accuracy
         # highScoreIndexes = np.argmax(scores)
         highestScore = np.max(scores)
@@ -719,7 +720,6 @@ def EvaluateTopKAccuracy(numK):
 
 for i in range(1,11):
   EvaluateTopKAccuracy(i)
-
 
 
 
