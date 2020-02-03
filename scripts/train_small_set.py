@@ -9,6 +9,8 @@ Original file is located at
 # Installs and Imports
 """
 
+print("Importing...")
+
 # install dependencies:
 # (use +cu100 because colab is on CUDA 10.0)
 # !pip install -U torch==1.4+cu100 torchvision==0.5+cu100 -f https://download.pytorch.org/whl/torch_stable.html 
@@ -51,6 +53,13 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog
 
 import argparse
+
+import datetime
+
+print("Imports done")
+
+dateTime = datetime.datetime.now()
+dateTime = str(dateTime)
 
 # from google.colab import drive
 # drive.mount('/content/drive')
@@ -232,6 +241,9 @@ def mapper(dataset_dict):
   # print(image.shape)
   dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
 
+  classID = ((dataset_dict["annotations"])[0])["category_id"]
+  # print("DATA SET DICT ID: ",dataset_dict["classID"])
+
   # cv2_imshow(image)
 
   annos = \
@@ -242,6 +254,8 @@ def mapper(dataset_dict):
   ]
   instances = utils.annotations_to_instances(annos, image.shape[:2])
   dataset_dict["instances"] = utils.filter_empty_instances(instances)
+
+  dataset_dict["classID"] = classID
 
   return dataset_dict
 
@@ -256,9 +270,9 @@ class Trainer(DefaultTrainer):
     #         evaluators.append(DensePoseCOCOEvaluator(dataset_name, True, output_folder))
     #     return DatasetEvaluators(evaluators)
 
-    # @classmethod
-    # def build_test_loader(cls, cfg, dataset_name):
-    #     return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+    @classmethod
+    def build_test_loader(cls, cfg, dataset_name):
+        return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
 
     @classmethod
     def build_train_loader(cls, cfg):
@@ -398,9 +412,7 @@ trainer = Trainer(cfg)
 # data_loader = build_detection_train_loader(cfg, mapper=mapper)
 # trainer.build_train_loader = data_loader
 
-import datetime
-dateTime = datetime.datetime.now()
-dateTime = str(dateTime)
+
 
 print("Model being used: ",modelLink)
 print("Learning rate: ",cfg.SOLVER.BASE_LR)
@@ -410,9 +422,10 @@ print("Number of classes: ",cfg.MODEL.RETINANET.NUM_CLASSES)
 OutputString = "\nDate time: \t"    + dateTime \
              + "\n________________________________________________________" \
              + "\n\Model being used: \t" + modelLink \
-             + "\nLearning rate: \t"     + str(cfg.SOLVER.BASE_LR) \
+             + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
-             + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES)
+             + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
+             + "\n"
 
 text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "w")
 text_file.write(OutputString)
@@ -495,26 +508,203 @@ for dictionary in random.sample(dataset_dicts, 12):
   else:
     print("No prediction: ", sharkID, "0.00")
 
-  v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-  
-
-  img = v.get_image()[:, :, ::-1]
+  # v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+  # img = v.get_image()[:, :, ::-1]
   # cv2_imshow(img)
   # os.makedirs(baseDirectory + "outputs/", exist_ok=True)
-  filename = baseDirectory + "outputs/" + sharkID + "_" + dictionary["file_name"]
-  cv2.imwrite(filename, img)
+  # filename = baseDirectory + "outputs/" + sharkID + "_" + dictionary["file_name"]
+  # cv2.imwrite(filename, img)
 
-# AP
+
+
+# Evaluation
 from detectron2.evaluation import COCOEvaluator, inference_on_dataset
+from detectron2.evaluation import DatasetEvaluator
 from detectron2.data import build_detection_test_loader
-evaluator = COCOEvaluator("shark_val", cfg, False, output_dir="./output/")
+# Get the coco evaluator
+evaluator = COCOEvaluator("shark_val", cfg, False, output_dir=cfg.OUTPUT_DIR+"/")
 # evaluator = COCOEvaluator("shark_train", cfg, False, output_dir="./output/")
-val_loader = build_detection_test_loader(cfg, "shark_val")
+
+# The loader for the test data (applies various transformations if we so choose)
+val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
 # val_loader = build_detection_test_loader(cfg, "shark_train")
+
+# Run the model on the data_loader and evaluate the metrics evaluator
+# Also benchmarks the inference speed of model.forward accurately
 inference_on_dataset(trainer.model, val_loader, evaluator)
 # another equivalent way is to use trainer.test
 
+class Top1Accuracy(DatasetEvaluator):
+  def reset(self):
+    self.numberCorrect = 0
+    self.totalNumber   = 0
+  # I think this is a single batch, with the inputted images and outputted results
+  def process(self, inputs, outputs):
+    for input,output in zip(inputs,outputs):
+      # prediction = 
+      # self.count += len(output["instances"])
+      # print(input)
+      classID = input["classID"]
+      trueSharkID = ClassList[classID]
 
+      # Get the instance objects from the outputs
+      instances = output["instances"]
+      # Get the classes
+      classes = instances.get("pred_classes")
+      # Convert classes to more useful sharkIDs
+      sharkIDs = []
+      for c in classes:
+        sharkIDs.append(ClassList[c])
+      # Get the list of scores
+      scores = instances.get("scores")
+      scores = scores.cpu()
+      scores = scores.numpy()
+      # Get the highest scores's indexes (argmax will get a list of indexes for the max score)
+      highestScore = np.max(scores)
+      highScoreIndexes = []
+      for idx,scr in enumerate(scores):
+        if(scr == highestScore): 
+          highScoreIndexes.append(idx)
+      # highScoreIndexes = np.argmax(scores)
+      # Get the sharkIDs that are the highest predicted
+      highScoreSharkIDs = []
+      for index in highScoreIndexes:
+        highScoreSharkIDs.append(sharkIDs[index])
+      # Check if the true ID is in the list of high scoring sharks
+      if(trueSharkID in highScoreSharkIDs):
+        # If it is in there, increment
+        self.numberCorrect = self.numberCorrect + 1
+      # Else: 
+        # Don't do anything
+
+      # Finally, increment the total number no matter what
+      self.totalNumber = self.totalNumber + 1
+  # Return a dictionary of the final result
+  def evaluate(self):
+    # save self.count somewhere, or print it, or return it.
+    accuracy = float(self.numberCorrect) / float(self.totalNumber)
+    return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy}
+
+
+myEvaluator = Top1Accuracy()
+# This first calls reset, then process, and finally evaluate
+# Reset just sets everything up
+# Process takes in an input and output and processes them
+# Evaluate should simply return all the results
+accuracy_results = inference_on_dataset(trainer.model, val_loader, myEvaluator)
+
+total_num   = str(accuracy_results["total_num"])
+num_correct = str(accuracy_results["num_correct"])
+top_1_acc   = str(accuracy_results["accuracy"])
+print(  "\nTotal Number: \t\t" + total_num \
+      + "\nNumber correct: \t" + num_correct \
+      + "\nTop 1 Accuracy: \t" + top_1_acc \
+      + "\n")
+# accuracy_string = total_num + 
+
+appendString = "\n________________________________________________________" \
+             + "\nTotal Number: \t\t" + total_num \
+             + "\nNumber correct: \t" + num_correct \
+             + "\nTop 1 Accuracy: \t" + top_1_acc \
+             + "\n"
+
+text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+text_file.write(appendString)
+text_file.close()
+
+
+
+# k = 1 should be equivalent
+class TopKAccuracy(DatasetEvaluator):
+  def __init__(self, k=5):
+    self.k = k
+  def reset(self):
+    self.numberCorrect = 0
+    self.totalNumber   = 0
+  # I think this is a single batch, with the inputted images and outputted results
+  def process(self, inputs, outputs):
+    for input,output in zip(inputs,outputs):
+      # prediction = 
+      # self.count += len(output["instances"])
+      # print(input)
+      classID = input["classID"]
+      trueSharkID = ClassList[classID]
+
+      # Get the instance objects from the outputs
+      instances = output["instances"]
+      # Get the classes
+      classes = instances.get("pred_classes")
+      # Convert classes to more useful sharkIDs
+      sharkIDs = []
+      for c in classes:
+        sharkIDs.append(ClassList[c])
+      # Get the list of scores
+      scores = instances.get("scores")
+      scores = scores.cpu()
+      scores = scores.numpy()
+      # Get the highest k scores's indexes
+      highScoreIndexesList = []
+      for i in range(0,k):
+        # Get a list of the indexes of the highest accuracy
+        # highScoreIndexes = np.argmax(scores)
+        highestScore = np.max(scores)
+        highScoreIndexes = []
+        for idx,scr in enumerate(scores):
+          if(scr == highestScore): 
+            highScoreIndexes.append(idx)
+        # For each index
+        for index in highScoreIndexes:
+          # Add this index to the highscoreIndexes
+          highScoreIndexesList.append(index)
+          # Remove this score
+          del scores[index]
+        
+        # If we reach the size the of k early in this loop
+        if(len(highScoreIndexesList) >= k):
+          # Break
+          break
+
+      # Get the sharkIDs that are the highest predicted
+      highScoreSharkIDs = []
+      for index in highScoreIndexesList:
+        highScoreSharkIDs.append(sharkIDs[index])
+      # Check if the true ID is in the list of high scoring sharks
+      if(trueSharkID in highScoreSharkIDs):
+        # If it is in there, increment
+        self.numberCorrect = self.numberCorrect + 1
+      # Else: 
+        # Don't do anything
+
+      # Finally, increment the total number no matter what
+      self.totalNumber = self.totalNumber + 1
+  # Return a dictionary of the final result
+  def evaluate(self):
+    # save self.count somewhere, or print it, or return it.
+    accuracy = float(self.numberCorrect) / float(self.totalNumber)
+    return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k}
+
+myEvaluator = TopKAccuracy(3)
+accuracy_results = inference_on_dataset(trainer.model, val_loader, myEvaluator)
+
+total_num   = str(accuracy_results["total_num"])
+num_correct = str(accuracy_results["num_correct"])
+top_k_acc   = str(accuracy_results["accuracy"])
+k           = str(accuracy_results["k"])
+
+appendString = "\n________________________________________________________" \
+             + "\nTotal Number: \t\t" + total_num \
+             + "\nNumber correct: \t" + num_correct \
+             + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+             + "\n"
+
+text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+text_file.write(appendString)
+text_file.close()
+
+print(  "\nTotal Number: \t\t" + total_num \
+      + "\nNumber correct: \t" + num_correct \
+      + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+      + "\n")
 
 
 # Open the file
