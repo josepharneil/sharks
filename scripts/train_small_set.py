@@ -656,6 +656,9 @@ class TopKAccuracy(DatasetEvaluator):
       # Get the top K shark IDs
       topKPredictedIDs = []
       for i in range(0,self.k):
+        # If the list is shorter than the number of k's we want to look at, 
+        # then break, no need to continue as there are no more predictions to consider
+        if(i >= len(sortedSharkIDScoreList)): break
         # Extract ith tuple
         currentTuple = sortedSharkIDScoreList[i]
         # Get the shark ID
