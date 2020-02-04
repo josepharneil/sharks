@@ -392,6 +392,9 @@ def CreateOutputFolder(counter):
     nextNumber = counter + 1
     CreateOutputFolder(nextNumber)
   else:
+    # append the job name, in case of race-conditions
+    # jobName = str(parser.parse_args().jobid)
+    # path = path + "_" + jobName
     # Create the directory
     os.makedirs(path, exist_ok=True)
     cfg.OUTPUT_DIR = path
