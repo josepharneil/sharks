@@ -654,7 +654,7 @@ class TopKAccuracy(DatasetEvaluator):
       # (sortedSharkIDScoreList[0])[0] gives you the sharkID for the 0th tuple
 
       # Get the top K shark IDs
-      topKPredictedIDs = []
+      # topKPredictedIDs = []
       for i in range(0,self.k):
         # If the list is shorter than the number of k's we want to look at, 
         # then break, no need to continue as there are no more predictions to consider
@@ -665,7 +665,7 @@ class TopKAccuracy(DatasetEvaluator):
         currentPredID = currentTuple[0]
         currentScore = currentTuple[1]
         # Append this to the top K predictions
-        topKPredictedIDs.append(currentPredID)
+        # topKPredictedIDs.append(currentPredID)
 
         # We increase the rank of the correct prediction for each equivalence we find
         # So if there are many predictions with the same score to the correct prediction
