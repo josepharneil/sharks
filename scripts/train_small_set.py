@@ -671,16 +671,32 @@ class TopKAccuracy(DatasetEvaluator):
         # So if there are many predictions with the same score to the correct prediction
         # we are "lowering" its rank to not consider it as much 
         # (where rank 0 is the highest)
-        rank = i
+        rank = -1
+
+        # # If we're dealing with the true one
+        # if(currentPredID == trueSharkID):
+        #   # Go through all pairs
+        #   for idx,scoreSharkIDPair in enumerate(sortedSharkIDScoreList):
+        #     # If there is an equivalent score
+        #     if(scoreSharkIDPair[1] == currentScore):
+        #       rank = idx
+        #       break
+
         # If the current predictedID we are considering is the trueSharkID
         if(currentPredID == trueSharkID):
           # Compare the correct prediction's score to all other scores
-          for scoreSharkIDPair in sortedSharkIDScoreList:
+          for idx,scoreSharkIDPair in enumerate(sortedSharkIDScoreList):
             # If there is an equivalence in score
             if(scoreSharkIDPair[1] == currentScore):
-              # Increment the rank 
-              # Note, this will occur at least once as we compare it to itself
-              rank = rank + 1
+              # If the rank hasn't been initialised, 
+              # set it to the lowest index of this score
+              if(rank == -1): 
+                rank = idx + 1
+              # If the rank has been set, increment
+              else:
+                # Increment the rank
+                # Note, this will occur at least once as we compare it to itself
+                rank = rank + 1
           # If the rank has exceed the number k we wanted to look at, don't count it
           if(rank <= self.k):
             # We increment, and then we don't care about the rest of the k's
