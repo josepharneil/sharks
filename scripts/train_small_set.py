@@ -101,6 +101,13 @@ parser.add_argument(
   type=int,
   help="Max number of iterations in training"
 )
+parser.add_argument(
+  "-id",
+  "--jobid",
+  default=-1,
+  type=int,
+  help="The Slurm JOB ID - Not set by the user"
+)
 
 
 
@@ -182,6 +189,8 @@ dataset_dicts = getSharkTrainDicts() #getSharkDicts("/content/drive/My Drive/sha
 
 """# Dataset Mapping"""
 
+############### Dataset Mapper ###############
+
 # Building my own data loader
 from detectron2.data import build_detection_train_loader
 from detectron2.data import transforms as T
@@ -259,6 +268,10 @@ def mapper(dataset_dict):
 
   return dataset_dict
 
+############### END Dataset Mapper ###############
+
+
+############### Custom Trainer ###############
 from detectron2.engine import DefaultTrainer
 
 class Trainer(DefaultTrainer):
@@ -278,6 +291,10 @@ class Trainer(DefaultTrainer):
     def build_train_loader(cls, cfg):
         return build_detection_train_loader(cfg, mapper=mapper)
 
+############### END Custom Trainer ###############
+
+
+############### Training Configuration ###############
 """# Training"""
 
 from detectron2.engine import DefaultTrainer
@@ -313,14 +330,14 @@ cfg = get_cfg()
 
 # get the pretrained retinanet model
 cfg.merge_from_file(model_zoo.get_config_file(modelLink))
-# cfg.merge_from_file(model_zoo.get(modelLink,trained=False))
+# cfg.merge_from_file(model_zoo.get(modelLink,trained=False))#?
 
-# list of the dataset names for training (registered in datasetcatalog (?))
+# list of the dataset names for training (registered in datasetcatalog)
 cfg.DATASETS.TRAIN = ("shark_train",)
-# list of the dataset names for testing (registered in datasetcatalog (?))
+# list of the dataset names for testing (registered in datasetcatalog)
 cfg.DATASETS.TEST = ()
 
-##cropping
+##random cropping
 # cfg.INPUT.CROP({"ENABLED": False})
 # cfg.INPUT.CROP.ENABLED = True
 ##
@@ -330,11 +347,9 @@ cfg.DATALOADER.NUM_WORKERS = 2
 
 # locate the pretrained weights
 cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(modelLink)  # Let training initialize from model zoo
-# cfg.MODEL.WEIGHTS = ""
 
 # number of images per batch
 cfg.SOLVER.IMS_PER_BATCH = 2
-# cfg.SOLVER.IMS_PER_BATCH = 16
 
 # learning rate
 # cfg.SOLVER.BASE_LR = 0.0000025  # pick a good LR
@@ -343,13 +358,7 @@ if(parser.parse_args().learning_rate == -1):
 else:
   cfg.SOLVER.BASE_LR = parser.parse_args().learning_rate
 
-
-# cfg.SOLVER.BASE_LR = 0.0025  # pick a good LR
-# cfg.SOLVER.BASE_LR = 0.001  # pick a good LR
-
 # max iterations
-# cfg.SOLVER.MAX_ITER = 1000    # 300 iterations seems good enough for this toy dataset; you may need to train longer for a practical dataset
-# cfg.SOLVER.MAX_ITER = 10000    # 300 iterations seems good enough for this toy dataset; you may need to train longer for a practical dataset
 if(parser.parse_args().max_iter == -1):
   cfg.SOLVER.MAX_ITER = 10000
 else:
@@ -357,16 +366,13 @@ else:
 
 
 # Minibatch size PER image - number of regions of interest (ROIs)
-cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512   # faster, and good enough for this toy dataset (default: 512)
-# cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128   # faster, and good enough for this toy dataset (default: 512)
+cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
 
 # Number of classes
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 cfg.MODEL.RETINANET.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 
-# directories (?)
-# Clear output directory
-
+# Creating and setting output folder path
 def CreateOutputFolder(counter):
   # Convert counter to a string
   ctrString = str(counter)
@@ -393,15 +399,7 @@ def CreateOutputFolder(counter):
 # Create a folder output0 etc.
 CreateOutputFolder(0)
 
-# os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-# filesInOutput = os.listdir(cfg.OUTPUT_DIR)
-# for file in filesInOutput:
-  # if(file != ".ipynb_checkpoints"):
-    # os.remove(cfg.OUTPUT_DIR+"/"+file)
-
-# os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-
-# Get the default trainer:
+# Define the we use trainer:
 ## 1) Create model, optimiser, scheduler, dataloader from the given config
 ## 2) Load a checkpoint or cfg.MODEL.WEIGHTS if it exists
 ## 3) Register a few common hooks (?)
@@ -409,22 +407,20 @@ CreateOutputFolder(0)
 # trainer = DefaultTrainer(cfg)
 trainer = Trainer(cfg)
 
-# data_loader = build_detection_train_loader(cfg, mapper=mapper)
-# trainer.build_train_loader = data_loader
-
-
-
+print("Outputting to: ",cfg.OUTPUT_DIR)
 print("Model being used: ",modelLink)
 print("Learning rate: ",cfg.SOLVER.BASE_LR)
 print("Max iterations: ",cfg.SOLVER.MAX_ITER)
 print("Number of classes: ",cfg.MODEL.RETINANET.NUM_CLASSES)
-
+jbName = str(parser.parse_args().jobid)
 OutputString = "\nDate time: \t"    + dateTime \
+             + "\nJobname: \t" + jbName \
              + "\n________________________________________________________" \
              + "\nModel being used: \t" + modelLink \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
+             + "\n________________________________________________________" \
              + "\n"
 
 text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "w")
@@ -432,7 +428,9 @@ text_file.write(OutputString)
 text_file.close()
 # torch.save(OutputString,cfg.OUTPUT_DIR+"/parameters-information.txt")
 
+############### END Training Configuration ###############
 
+############### Training ###############
 # If true, and the last checkpoint exists, resume from it
 # If false, load a model specified by the config
 trainer.resume_or_load(resume=False)
@@ -443,13 +441,14 @@ trainer.train()
 # !kill 1825
 # %load_ext tensorboard
 # %tensorboard --logdir output
+############### END Training ###############
 
 """# Inference and Evaluation"""
 
 # Inference:
 cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
 # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7   # set the testing threshold for this model
-# cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set the testing threshold for this model
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.2  # set the testing threshold for this model
 cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.2
 cfg.DATASETS.TEST = ("shark_val", )
 # cfg.DATASETS.TEST = ("shark_train", )
@@ -536,6 +535,9 @@ class Top1Accuracy(DatasetEvaluator):
   # I think this is a single batch, with the inputted images and outputted results
   def process(self, inputs, outputs):
     for input,output in zip(inputs,outputs):
+      # Finally, increment the total number no matter what
+      self.totalNumber = self.totalNumber + 1
+
       # prediction = 
       # self.count += len(output["instances"])
       # print(input)
@@ -572,9 +574,6 @@ class Top1Accuracy(DatasetEvaluator):
         self.numberCorrect = self.numberCorrect + 1
       # Else: 
         # Don't do anything
-
-      # Finally, increment the total number no matter what
-      self.totalNumber = self.totalNumber + 1
   # Return a dictionary of the final result
   def evaluate(self):
     # save self.count somewhere, or print it, or return it.
@@ -592,8 +591,8 @@ accuracy_results = inference_on_dataset(trainer.model, val_loader, myEvaluator)
 total_num   = str(accuracy_results["total_num"])
 num_correct = str(accuracy_results["num_correct"])
 top_1_acc   = str(accuracy_results["accuracy"])
-print(  "\nTotal Number: \t\t" + total_num \
-      + "\nNumber correct: \t" + num_correct \
+print(  "\nNumber Correct: \t" + num_correct \
+      + "\nTotal Number: \t\t" + total_num \
       + "\nTop 1 Accuracy: \t" + top_1_acc \
       + "\n")
 # accuracy_string = total_num + 
@@ -620,70 +619,77 @@ class TopKAccuracy(DatasetEvaluator):
   # I think this is a single batch, with the inputted images and outputted results
   def process(self, inputs, outputs):
     for input,output in zip(inputs,outputs):
-      # prediction = 
-      # self.count += len(output["instances"])
-      # print(input)
+      # Increment the total number no matter what
+      self.totalNumber = self.totalNumber + 1
+
+      # Get the true class ID
       classID = input["classID"]
       trueSharkID = ClassList[classID]
 
-      # Get the instance objects from the outputs
+      # Get the instances object from the outputs
       instances = output["instances"]
-      # Get the classes
+      
+      # Get the predicted classes for this image
       classes = instances.get("pred_classes")
       # Convert classes to more useful sharkIDs
-      sharkIDs = []
+      predictedSharkIDs = []
       for c in classes:
-        sharkIDs.append(ClassList[c])
-      # Get the list of scores
+        predictedSharkIDs.append(ClassList[c])
+
+      # Get the list of scores for each prediction
       scores = instances.get("scores")
       scores = scores.cpu()
       scores = scores.numpy()
-      scores = list(scores)
-      if(len(scores) == 0): break
-      # scoresList = []
-      # for sc in scores:
-      #   scoresList.append(sc)
-      # Get the highest k scores's indexes
-      highScoreIndexesList = []
+      
+      # If there are no predicted scores for his input, skip iteration of the loop
+      if(len(scores) == 0): continue
+
+      # Zip up the predicted shark IDs and scores into a dictionary
+      sharkIDScoreDict = dict(zip(predictedSharkIDs,scores))
+      # Sort it into a list of descending order, in order of the value (the score)
+      sortedSharkIDScoreList = sorted(sharkIDScoreDict.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
+
+      # sortedSharkIDScoreList is a list of tuples: [(sharkID,score),...]
+      # sortedSharkIDScoreList[0] gives you the highest scoring tuple
+      # (sortedSharkIDScoreList[0])[0] gives you the sharkID for the 0th tuple
+
+      # Get the top K shark IDs
+      topKPredictedIDs = []
       for i in range(0,self.k):
-        if(len(scores) == 0): break
-        # Get a list of the indexes of the highest accuracy
-        # highScoreIndexes = np.argmax(scores)
-        highestScore = np.max(scores)
-        highScoreIndexes = []
-        for idx,scr in enumerate(scores):
-          if(scr == highestScore): 
-            highScoreIndexes.append(idx)
-        # For each index
-        for index in highScoreIndexes:
-          # Add this index to the highscoreIndexes
-          highScoreIndexesList.append(index)
-          # Remove this score
-          del scores[index]
-        
-        # If we reach the size the of k early in this loop
-        if(len(highScoreIndexesList) >= self.k):
-          # Break
-          break
+        # Extract ith tuple
+        currentTuple = sortedSharkIDScoreList[i]
+        # Get the shark ID
+        currentPredID = currentTuple[0]
+        currentScore = currentTuple[1]
+        # Append this to the top K predictions
+        topKPredictedIDs.append(currentPredID)
 
-      # Get the sharkIDs that are the highest predicted
-      highScoreSharkIDs = []
-      for index in highScoreIndexesList:
-        highScoreSharkIDs.append(sharkIDs[index])
-      # Check if the true ID is in the list of high scoring sharks
-      if(trueSharkID in highScoreSharkIDs):
-        # If it is in there, increment
-        self.numberCorrect = self.numberCorrect + 1
-      # Else: 
-        # Don't do anything
+        # We increase the rank of the correct prediction for each equivalence we find
+        # So if there are many predictions with the same score to the correct prediction
+        # we are "lowering" its rank to not consider it as much 
+        # (where rank 0 is the highest)
+        rank = i
+        # If the current predictedID we are considering is the trueSharkID
+        if(currentPredID == trueSharkID):
+          # Compare the correct prediction's score to all other scores
+          for scoreSharkIDPair in sortedSharkIDScoreList:
+            # If there is an equivalence in score
+            if(scoreSharkIDPair[1] == currentScore):
+              # Increment the rank 
+              # Note, this will occur at least once as we compare it to itself
+              rank = rank + 1
+          # If the rank has exceed the number k we wanted to look at, don't count it
+          if(rank <= self.k):
+            # We increment, and then we don't care about the rest of the k's
+            self.numberCorrect = self.numberCorrect + 1
+            break
 
-      # Finally, increment the total number no matter what
-      self.totalNumber = self.totalNumber + 1
   # Return a dictionary of the final result
   def evaluate(self):
     # save self.count somewhere, or print it, or return it.
     accuracy = float(self.numberCorrect) / float(self.totalNumber)
     return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k}
+
 
 def EvaluateTopKAccuracy(numK):
   # Create evaluator object
@@ -709,8 +715,8 @@ def EvaluateTopKAccuracy(numK):
   text_file.close()
 
   # Print the file
-  print(  "\nTotal Number: \t\t" + total_num \
-        + "\nNumber correct: \t" + num_correct \
+  print(  "\nNumber correct: \t" + num_correct \
+        + "\nTotal Number: \t\t" + total_num \
         + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
         + "\n\n")
 
@@ -718,26 +724,20 @@ def EvaluateTopKAccuracy(numK):
 # for i in range(1,1):
 # EvaluateTopKAccuracy(1)
 
-for i in range(1,11):
+for i in range(1,11,2):
   EvaluateTopKAccuracy(i)
 
 
 
 
 
-### Move the slurm file, if possible ### 
-# Open the file
-text_file = open("jobName", "r")
-# Read it in
-jobName = text_file.read()
-if(jobName == ""):
-  print("Empty jobName file")
-else:
-  # Extract the jobname
-  jobName = jobName[20:len(jobName)-1]
-  # Create the file name
-  filename = "slurm-"+jobName+".out"
-  # Copy the file
-  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-  # Delete the original 
-  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
+### Move the Slurm file ###
+# Get the jobname
+jobName = str(parser.parse_args().jobid)
+print("Moving ",jobName)
+# Create the file name
+filename = "slurm-"+jobName+".out"
+# Copy the file
+shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+# Delete the original 
+os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
