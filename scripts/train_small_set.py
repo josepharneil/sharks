@@ -39,7 +39,7 @@ import random
 # from google.colab.patches import cv2_imshow
 import math
 
-import cv2
+# import cv2
 import os
 import numpy as np
 import json
@@ -108,8 +108,6 @@ parser.add_argument(
   type=int,
   help="The Slurm JOB ID - Not set by the user"
 )
-
-
 
 
 """# Dataset
@@ -311,18 +309,25 @@ import shutil
 
 # modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
 modelLink = ""
+modelOutputFolderName = ""
 if(parser.parse_args().model == 0):
   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
+  modelOutputFolderName = "retinanet_R_50_FPN_1x"
 elif(parser.parse_args().model == 1):
   modelLink = "COCO-Detection/retinanet_R_50_FPN_3x.yaml"
+  modelOutputFolderName = "retinanet_R_50_FPN_3x"
 elif(parser.parse_args().model == 2):
   modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
+  modelOutputFolderName = "retinanet_R_101_FPN_3x"
 elif(parser.parse_args().model == 3):
   modelLink = "COCO-Detection/faster_rcnn_R_50_C4_1x.yaml"
+  modelOutputFolderName = "faster_rcnn_R_50_C4_1x"
 elif(parser.parse_args().model == 4):
   modelLink = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
+  modelOutputFolderName = "mask_rcnn_R_50_FPN_3x"
 else:
   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
+  modelOutputFolderName = "retinanet_R_50_FPN_1x"
 
 
 # default configuration
@@ -373,44 +378,55 @@ cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(SharkClassDictionary)  # only has one clas
 cfg.MODEL.RETINANET.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 
 # Creating and setting output folder path
-def CreateOutputFolder(counter):
-  # Convert counter to a string
-  ctrString = str(counter)
+# def CreateOutputFolder(counter):
+#   # Convert counter to a string
+#   ctrString = str(counter)
   
-  # Append 0s
-  if(counter < 100):
-    ctrString = "0" + ctrString
-    if(counter < 10):
-      ctrString = "0" + ctrString
+#   # Append 0s
+#   if(counter < 100):
+#     ctrString = "0" + ctrString
+#     if(counter < 10):
+#       ctrString = "0" + ctrString
 
-  # Create the folder and path names
-  foldername = "output"+ctrString
-  path = baseOutputDirectory + foldername
+#   # Create the folder and path names
+#   foldername = "output"+ctrString
+#   path = baseOutputDirectory + modelOutputFolderName + "/" + foldername
 
-  # If it exists, recurse to the next number
-  currentOutFolders = os.listdir(path)
-  isFolder = False
-  if(os.path.isdir(path)): 
-    isFolder = True
-  for fldr in currentOutFolders:
-    # If in form outputXXX_<jobid>
-    if(len(fldr) >= 9):
-      if(fldr[:9] == path): 
-        isFolder = True
+#   # Get list of all folders in output folder
+#   currentOutFolders = os.listdir(baseOutputDirectory)
+#   isFolder = False
+#   # If the path exists, then note that it exists
+#   if(os.path.isdir(path)):
+#     isFolder = True
+#   # If the list includes the correct form
+#   for fldr in currentOutFolders:
+#     # If in form outputXXX_<jobid>
+#     if(len(fldr) >= 9):
+#       if(fldr[:9] == path): 
+#         isFolder = True
 
-  # if(os.path.isdir(path)):
-  if(isFolder):
-    nextNumber = counter + 1
-    CreateOutputFolder(nextNumber)
-  else:
-    # Create the directory
-    jbName = str(parser.parse_args().jobid)
-    path = path + "_" + jbName
-    os.makedirs(path, exist_ok=True)
-    cfg.OUTPUT_DIR = path
+#   # if(os.path.isdir(path)):
+#   # If it exists, recurse to the next number
+#   if(isFolder):
+#     nextNumber = counter + 1
+#     # CreateOutputFolder(nextNumber)
+#   else:
+#     # Create the directory
+#     jbName = str(parser.parse_args().jobid)
+#     path = path + "_" + jbName
+#     os.makedirs(path, exist_ok=True)
+#     cfg.OUTPUT_DIR = path
+
+def CreateOutputFolder():
+  jbName = str(parser.parse_args().jobid)
+  foldername = "output_"+jbName
+  path = baseOutputDirectory + modelOutputFolderName + "/" + foldername
+  os.makedirs(path, exist_ok=True)
+  cfg.OUTPUT_DIR = path
 
 # Create a folder output0 etc.
-CreateOutputFolder(0)
+# CreateOutputFolder(0)
+CreateOutputFolder()
 
 
 # Define the we use trainer:
@@ -519,14 +535,20 @@ for dictionary in random.sample(dataset_dicts, 12):
   else:
     print("No prediction: ", sharkID, "0.00")
 
-  # v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-  # img = v.get_image()[:, :, ::-1]
+  v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+  img = v.get_image()[:, :, ::-1]
   # cv2_imshow(img)
   # os.makedirs(baseDirectory + "outputs/", exist_ok=True)
-  # filename = baseDirectory + "outputs/" + sharkID + "_" + dictionary["file_name"]
-  # cv2.imwrite(filename, img)
+  # if(not os.path.isdir(cfg.OUTPUT_DIR + "/predictions"))
 
-
+  initialPath = os.getcwd()
+  os.makedirs(cfg.OUTPUT_DIR + "/predictions", exist_ok=True)
+  os.chdir(cfg.OUTPUT_DIR + "/predictions")
+  imageFilename = dictionary["file_name"] + "_" + sharkID + ".jpg"
+  cv2.imwrite(imageFilename, img)
+  os.chdir(initialPath)
+  # filename = cfg.OUTPUT_DIR + "/predictions/" + dictionary["file_name"] + "_" + sharkID + ".jpg"
+  
 
 # Evaluation
 from detectron2.evaluation import COCOEvaluator, inference_on_dataset
@@ -546,12 +568,12 @@ def COCOEvaluation():
 
   # "bbox": ["AP", "AP50", "AP75", "APs", "APm", "APl"]
   cocoBbox = cocoOutput["bbox"]
-  mAP   = cocoBbox["AP"]
-  mAP50 = cocoBbox["AP50"]
-  mAP75 = cocoBbox["AP75"]
-  mAPs  = cocoBbox["APs"]
-  mAPm  = cocoBbox["APm"]
-  mAPl  = cocoBbox["APl"]
+  mAP   = str(cocoBbox["AP"])
+  mAP50 = str(cocoBbox["AP50"])
+  mAP75 = str(cocoBbox["AP75"])
+  mAPs  = str(cocoBbox["APs"])
+  mAPm  = str(cocoBbox["APm"])
+  mAPl  = str(cocoBbox["APl"])
   
   copycocoB = copy.deepcopy(cocoBbox)
   copycocoB.pop("AP")
@@ -568,7 +590,8 @@ def COCOEvaluation():
     if(not math.isnan(copycocoB[APClass])):
       averageScore = averageScore + copycocoB[APClass]
 
-  averageScore = averageScore / numAPClasses
+  averageScore = float(averageScore) / float(numAPClasses)
+  averageScore = str(averageScore)
 
   # print(cocoBbox["AP"])
   # another equivalent way is to use trainer.test
@@ -589,6 +612,7 @@ def COCOEvaluation():
   text_file.write(appendString)
   text_file.close()
 
+COCOEvaluation()
 
 '''
 class Top1Accuracy(DatasetEvaluator):
