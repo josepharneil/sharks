@@ -372,6 +372,7 @@ cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 cfg.MODEL.RETINANET.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 
+import time
 # Creating and setting output folder path
 def CreateOutputFolder(counter):
   # Convert counter to a string
@@ -387,14 +388,13 @@ def CreateOutputFolder(counter):
   foldername = "output"+ctrString
   path = baseOutputDirectory + foldername
 
+  r = float(random.randrange(0,2)) / 2
+  time.sleep(r)
   # If it exists, recurse
   if(os.path.isdir(path)):
     nextNumber = counter + 1
     CreateOutputFolder(nextNumber)
   else:
-    # append the job name, in case of race-conditions
-    # jobName = str(parser.parse_args().jobid)
-    # path = path + "_" + jobName
     # Create the directory
     os.makedirs(path, exist_ok=True)
     cfg.OUTPUT_DIR = path
