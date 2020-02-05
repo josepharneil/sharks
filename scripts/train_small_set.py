@@ -372,7 +372,6 @@ cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 cfg.MODEL.RETINANET.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 
-import time
 # Creating and setting output folder path
 def CreateOutputFolder(counter):
   # Convert counter to a string
@@ -388,8 +387,6 @@ def CreateOutputFolder(counter):
   foldername = "output"+ctrString
   path = baseOutputDirectory + foldername
 
-  r = float(random.randrange(0,2)) / 2
-  time.sleep(r)
   # If it exists, recurse
   if(os.path.isdir(path)):
     nextNumber = counter + 1
@@ -527,7 +524,8 @@ cocoEvaluator = COCOEvaluator("shark_val", cfg, False, output_dir=cfg.OUTPUT_DIR
 val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
 # Run the model on the data_loader and evaluate the metrics evaluator
 # Also benchmarks the inference speed of model.forward accurately
-inference_on_dataset(trainer.model, val_loader, cocoEvaluator)
+cocoOutput = inference_on_dataset(trainer.model, val_loader, cocoEvaluator)
+print(cocoOutput)
 # another equivalent way is to use trainer.test
 
 '''
@@ -748,8 +746,6 @@ def EvaluateTopKAccuracy(numK):
 
 for i in range(1,11,2):
   EvaluateTopKAccuracy(i)
-
-
 
 
 
