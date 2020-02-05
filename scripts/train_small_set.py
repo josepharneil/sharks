@@ -387,17 +387,31 @@ def CreateOutputFolder(counter):
   foldername = "output"+ctrString
   path = baseOutputDirectory + foldername
 
-  # If it exists, recurse
-  if(os.path.isdir(path)):
+  # If it exists, recurse to the next number
+  currentOutFolders = os.listdir(path)
+  isFolder = False
+  if(os.path.isdir(path)): 
+    isFolder = True
+  for fldr in currentOutFolders:
+    # If in form outputXXX_<jobid>
+    if(len(fldr) >= 9):
+      if(fldr[:9] == path): 
+        isFolder = True
+
+  # if(os.path.isdir(path)):
+  if(isFolder):
     nextNumber = counter + 1
     CreateOutputFolder(nextNumber)
   else:
     # Create the directory
+    jbName = str(parser.parse_args().jobid)
+    path = path + "_" + jbName
     os.makedirs(path, exist_ok=True)
     cfg.OUTPUT_DIR = path
 
 # Create a folder output0 etc.
 CreateOutputFolder(0)
+
 
 # Define the we use trainer:
 ## 1) Create model, optimiser, scheduler, dataloader from the given config
@@ -518,15 +532,63 @@ for dictionary in random.sample(dataset_dicts, 12):
 from detectron2.evaluation import COCOEvaluator, inference_on_dataset
 from detectron2.evaluation import DatasetEvaluator
 from detectron2.data import build_detection_test_loader
-# Get the coco evaluator
-cocoEvaluator = COCOEvaluator("shark_val", cfg, False, output_dir=cfg.OUTPUT_DIR+"/")
+
 # The loader for the test data (applies various transformations if we so choose)
 val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
-# Run the model on the data_loader and evaluate the metrics evaluator
-# Also benchmarks the inference speed of model.forward accurately
-cocoOutput = inference_on_dataset(trainer.model, val_loader, cocoEvaluator)
-print(cocoOutput)
-# another equivalent way is to use trainer.test
+
+def COCOEvaluation():
+  # Get the coco evaluator
+  cocoEvaluator = COCOEvaluator("shark_val", cfg, False, output_dir=cfg.OUTPUT_DIR+"/")
+
+  # Run the model on the data_loader and evaluate the metrics evaluator
+  # Also benchmarks the inference speed of model.forward accurately
+  cocoOutput = inference_on_dataset(trainer.model, val_loader, cocoEvaluator)
+
+  # "bbox": ["AP", "AP50", "AP75", "APs", "APm", "APl"]
+  cocoBbox = cocoOutput["bbox"]
+  mAP   = cocoBbox["AP"]
+  mAP50 = cocoBbox["AP50"]
+  mAP75 = cocoBbox["AP75"]
+  mAPs  = cocoBbox["APs"]
+  mAPm  = cocoBbox["APm"]
+  mAPl  = cocoBbox["APl"]
+  
+  copycocoB = copy.deepcopy(cocoBbox)
+  copycocoB.pop("AP")
+  copycocoB.pop("AP50")
+  copycocoB.pop("AP75")
+  copycocoB.pop("APs")
+  copycocoB.pop("APm")
+  copycocoB.pop("APl")
+
+  numAPClasses = 0
+  averageScore = 0
+  for APClass in copycocoB:
+    numAPClasses = numAPClasses + 1
+    if(not math.isnan(copycocoB[APClass])):
+      averageScore = averageScore + copycocoB[APClass]
+
+  averageScore = averageScore / numAPClasses
+
+  # print(cocoBbox["AP"])
+  # another equivalent way is to use trainer.test
+
+  # Create the string we're going to add to the text_file
+  appendString = "\n________________________________________________________" \
+                + "\nAverage Precision COCO: \t" + mAP \
+                + "\nAverage Precision 50  : \t" + mAP50 \
+                + "\nAverage Precision 75  : \t" + mAP75 \
+                + "\nAverage Precision Small : \t" + mAPs \
+                + "\nAverage Precision Medium: \t" + mAPm \
+                + "\nAverage Precision Large : \t" + mAPl \
+                + "\nMean Average Precision: \t" + averageScore \
+                + "\n"
+
+  # Append to the file
+  text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+  text_file.write(appendString)
+  text_file.close()
+
 
 '''
 class Top1Accuracy(DatasetEvaluator):
