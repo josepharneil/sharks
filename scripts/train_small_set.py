@@ -439,6 +439,7 @@ trainer = Trainer(cfg)
 
 print("Outputting to: ",cfg.OUTPUT_DIR)
 print("Model being used: ",modelLink)
+print("Model index: ",parser.parse_args().model)
 print("Learning rate: ",cfg.SOLVER.BASE_LR)
 print("Max iterations: ",cfg.SOLVER.MAX_ITER)
 print("Number of classes: ",cfg.MODEL.RETINANET.NUM_CLASSES)
@@ -447,6 +448,7 @@ OutputString = "\nDate time: \t"    + dateTime \
              + "\nJobname: \t" + jbName \
              + "\n________________________________________________________" \
              + "\nModel being used: \t" + modelLink \
+             + "\Model index: \t" + str(parser.parse_args().model) \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
@@ -649,6 +651,7 @@ cocoResults = COCOEvaluation()
 
 parameterDict = OrderedDict()
 parameterDict["model"] = modelOutputFolderName
+parameterDict["model_index"] = parser.parse_args().model
 parameterDict["lr"] = cfg.SOLVER.BASE_LR
 parameterDict["max_iter"] = cfg.SOLVER.MAX_ITER
 parameterDict["batch_size_per_image"] = cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
@@ -892,6 +895,12 @@ for i in range(1,11,2):
 
 
 torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
+
+import csv
+with open(cfg.OUTPUT_DIR+"/output.csv", "wb") as outputCSV:
+  writer = csv.writer(outputCSV)
+  for key,value in evaluationDict.items():
+    writer.writerow([key,value])
 
 
 ############### END Evaluation ###############
