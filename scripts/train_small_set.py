@@ -484,7 +484,21 @@ cfg.DATASETS.TEST = ("shark_val", )
 # cfg.DATASETS.TEST = ("shark_train", )
 # Create a simple end-to-end predictor with the given config
 ## This predictor takes care of model loading and input preprocessing for you
-predictor = DefaultPredictor(cfg)
+try:
+  predictor = DefaultPredictor(cfg)
+except AssertionError:
+  print("Checkpoint not found, model not found")
+  ### Move the Slurm file ###
+  # Get the jobname
+  jobName = str(parser.parse_args().jobid)
+  print("Moving ",jobName)
+  # Create the file name
+  filename = "slurm-"+jobName+".out"
+  # Copy the file
+  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+  # Delete the original 
+  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
+  raise AssertionError("model_final.pth not found!")
 
 # Visualise:
 # from detectron2.utils.visualizer import ColorMode
