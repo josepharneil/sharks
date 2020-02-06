@@ -53,8 +53,8 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog
 
 import argparse
-
 import datetime
+from collections import OrderedDict
 
 print("Imports done")
 
@@ -564,10 +564,18 @@ for dictionary in random.sample(dataset_dicts, 12):
   # filename = cfg.OUTPUT_DIR + "/predictions/" + dictionary["file_name"] + "_" + sharkID + ".jpg"
   
 
+
+
+
+############### Evaluation ###############
+
+
 # Evaluation
 from detectron2.evaluation import COCOEvaluator, inference_on_dataset
 from detectron2.evaluation import DatasetEvaluator
 from detectron2.data import build_detection_test_loader
+
+evaluationDict = OrderedDict()
 
 # The loader for the test data (applies various transformations if we so choose)
 val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
@@ -582,12 +590,12 @@ def COCOEvaluation():
 
   # "bbox": ["AP", "AP50", "AP75", "APs", "APm", "APl"]
   cocoBbox = cocoOutput["bbox"]
-  mAP   = str(cocoBbox["AP"])
-  mAP50 = str(cocoBbox["AP50"])
-  mAP75 = str(cocoBbox["AP75"])
-  mAPs  = str(cocoBbox["APs"])
-  mAPm  = str(cocoBbox["APm"])
-  mAPl  = str(cocoBbox["APl"])
+  mAP   = round(cocoBbox["AP"],2)
+  mAP50 = round(cocoBbox["AP50"],2)
+  mAP75 = round(cocoBbox["AP75"],2)
+  mAPs  = round(cocoBbox["APs"],2)
+  mAPm  = round(cocoBbox["APm"],2)
+  mAPl  = round(cocoBbox["APl"],2)
   
   copycocoB = copy.deepcopy(cocoBbox)
   copycocoB.pop("AP")
@@ -605,20 +613,20 @@ def COCOEvaluation():
       averageScore = averageScore + copycocoB[APClass]
 
   averageScore = float(averageScore) / float(numAPClasses)
-  averageScore = str(averageScore)
+  # averageScore = str(averageScore)
 
   # print(cocoBbox["AP"])
   # another equivalent way is to use trainer.test
 
   # Create the string we're going to add to the text_file
   appendString = "\n________________________________________________________" \
-                + "\nAverage Precision COCO: \t" + mAP \
-                + "\nAverage Precision 50  : \t" + mAP50 \
-                + "\nAverage Precision 75  : \t" + mAP75 \
-                + "\nAverage Precision Small : \t" + mAPs \
-                + "\nAverage Precision Medium: \t" + mAPm \
-                + "\nAverage Precision Large : \t" + mAPl \
-                + "\nMean Average Precision: \t" + averageScore \
+                + "\nAverage Precision COCO: \t" + str(mAP) \
+                + "\nAverage Precision 50  : \t" + str(mAP50) \
+                + "\nAverage Precision 75  : \t" + str(mAP75) \
+                + "\nAverage Precision Small : \t" + str(mAPs) \
+                + "\nAverage Precision Medium: \t" + str(mAPm) \
+                + "\nAverage Precision Large : \t" + str(mAPl) \
+                + "\nMean Average Precision: \t" + str(averageScore) \
                 + "\n"
 
   # Append to the file
@@ -626,7 +634,34 @@ def COCOEvaluation():
   text_file.write(appendString)
   text_file.close()
 
-COCOEvaluation()
+  resultDict = OrderedDict()
+  resultDict["AP"]   = mAP
+  resultDict["AP50"] = mAP50
+  resultDict["AP75"] = mAP75
+  resultDict["APs"]  = mAPs
+  resultDict["APm"]  = mAPm
+  resultDict["APl"]  = mAPl
+  resultDict["ClassAveAP"] = averageScore
+  resultDict["PerClassAP"] = copycocoB
+  return resultDict
+
+cocoResults = COCOEvaluation()
+
+parameterDict = OrderedDict()
+parameterDict["model"] = modelOutputFolderName
+parameterDict["lr"] = cfg.SOLVER.BASE_LR
+parameterDict["max_iter"] = cfg.SOLVER.MAX_ITER
+parameterDict["batch_size_per_image"] = cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
+parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
+parameterDict["jobid"] = parser.parse_args().jobid
+parameterDict["output_directory"] = cfg.OUTPUT_DIR
+
+
+evaluationDict["params"] = parameterDict
+
+
+evaluationDict["coco"] = cocoResults
+
 
 '''
 class Top1Accuracy(DatasetEvaluator):
@@ -819,7 +854,7 @@ def EvaluateTopKAccuracy(numK):
   # Extract results
   total_num   = str(accuracy_results["total_num"])
   num_correct = str(accuracy_results["num_correct"])
-  top_k_acc   = str(accuracy_results["accuracy"])
+  top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
   k           = str(accuracy_results["k"])
 
   # Create the string we're going to add to the text_file
@@ -840,13 +875,26 @@ def EvaluateTopKAccuracy(numK):
         + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
         + "\n\n")
 
+  result = OrderedDict()
+  result["accuracy"]    = round(accuracy_results["accuracy"]*100,2)
+  result["num_correct"] = accuracy_results["num_correct"]
+  result["total_num"]   = accuracy_results["total_num"]
+  result["k"]           = accuracy_results["k"]
+  return result
 
-# for i in range(1,1):
-# EvaluateTopKAccuracy(1)
 
+# Evaulate Accuracy
 for i in range(1,11,2):
-  EvaluateTopKAccuracy(i)
+  accResult = EvaluateTopKAccuracy(i)
+  k = accResult["k"]
+  key = "top_"+str(k)+"acc"
+  evaluationDict[key] = accResult
 
+
+torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
+
+
+############### END Evaluation ###############
 
 
 ### Move the Slurm file ###
