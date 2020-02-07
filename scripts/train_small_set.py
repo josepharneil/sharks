@@ -644,21 +644,23 @@ def COCOEvaluation():
   resultDict["APm"]  = mAPm
   resultDict["APl"]  = mAPl
   resultDict["ClassAveAP"] = averageScore
-  resultDict["PerClassAP"] = copycocoB
+  for key in copycocoB:
+    resultDict[key] = copycocoB???
+  # resultDict["PerClassAP"] = copycocoB
   return resultDict
 
 cocoResults = COCOEvaluation()
 
 parameterDict = OrderedDict()
+parameterDict["jobid"] = parser.parse_args().jobid
+parameterDict["output_directory"] = cfg.OUTPUT_DIR
 parameterDict["model"] = modelOutputFolderName
 parameterDict["model_index"] = parser.parse_args().model
 parameterDict["lr"] = cfg.SOLVER.BASE_LR
 parameterDict["max_iter"] = cfg.SOLVER.MAX_ITER
 parameterDict["batch_size_per_image"] = cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
 parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
-parameterDict["jobid"] = parser.parse_args().jobid
-parameterDict["output_directory"] = cfg.OUTPUT_DIR
-
+parameterDict["transforms"] = "Crop to bounding box"
 
 evaluationDict["params"] = parameterDict
 
@@ -886,25 +888,67 @@ def EvaluateTopKAccuracy(numK):
   return result
 
 
+KAccDict = OrderedDict()
 # Evaulate Accuracy
 for i in range(1,11,2):
   accResult = EvaluateTopKAccuracy(i)
   k = accResult["k"]
-  key = "top_"+str(k)+"acc"
-  evaluationDict[key] = accResult
+  key = "top_"+str(k)+"_acc"
+  KAccDict[key] = accResult
 
+evaluationDict["acc"] = KAccDict
 
 torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
 
+############### END Evaluation ###############
+
+############### CSV Nightmare ###############
 import csv
-with open(cfg.OUTPUT_DIR+"/output.csv", "wb") as outputCSV:
+with open(cfg.OUTPUT_DIR+"/output.csv", "w") as outputCSV:
   writer = csv.writer(outputCSV)
   for key,value in evaluationDict.items():
     writer.writerow([key,value])
 
 
-############### END Evaluation ###############
+def AppendToCSV():
+  paramKeys = list(out["params"].keys())
+  paramVals = list(out["params"].values())
 
+  cocoKeys = list(out["coco"].keys())
+  cocoKeys = cocoKeys[:len(cocoKeys)-1]
+  cocoVals = list(out["coco"].values())
+  cocoVals = cocoVals[:len(cocoVals)-1]
+
+  accVals = []
+  for acc in list((out["acc"].values())):
+    accVals.append(acc["accuracy"])
+
+  accKeys = list(out["acc"].keys())
+
+  perClass = out["coco"].pop("PerClassAP")
+
+  perClassKeyList = []
+  perClassValList = []
+  for key,value in perClass.items():
+    perClassKeyList.append(key)
+    perClassValList.append(value)
+
+  cocoKeys = cocoKeys + perClassKeyList
+  cocoVals = cocoVals + perClassValList
+
+  resultKeys = paramKeys + accKeys + cocoKeys
+  resultVals = paramVals + accVals + cocoVals
+
+  # Creation of the csv and adding new keys will be done in a different script
+  # Append new values
+  with open("result.csv","a+") as outputCSV:
+    writer = csv.writer(outputCSV)
+    # writer.writerow(resultKeys)
+    writer.writerow(resultVals)
+
+############### END CSV Nightmare ###############
+
+AppendToCSV()
 
 ### Move the Slurm file ###
 # Get the jobname
