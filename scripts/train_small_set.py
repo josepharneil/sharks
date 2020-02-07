@@ -644,9 +644,7 @@ def COCOEvaluation():
   resultDict["APm"]  = mAPm
   resultDict["APl"]  = mAPl
   resultDict["ClassAveAP"] = averageScore
-  for key in copycocoB:
-    resultDict[key] = copycocoB???
-  # resultDict["PerClassAP"] = copycocoB
+  resultDict["PerClassAP"] = copycocoB
   return resultDict
 
 cocoResults = COCOEvaluation()
@@ -911,21 +909,21 @@ with open(cfg.OUTPUT_DIR+"/output.csv", "w") as outputCSV:
 
 
 def AppendToCSV():
-  paramKeys = list(out["params"].keys())
-  paramVals = list(out["params"].values())
+  paramKeys = list(evaluationDict["params"].keys())
+  paramVals = list(evaluationDict["params"].values())
 
-  cocoKeys = list(out["coco"].keys())
+  cocoKeys = list(evaluationDict["coco"].keys())
   cocoKeys = cocoKeys[:len(cocoKeys)-1]
-  cocoVals = list(out["coco"].values())
+  cocoVals = list(evaluationDict["coco"].values())
   cocoVals = cocoVals[:len(cocoVals)-1]
 
   accVals = []
-  for acc in list((out["acc"].values())):
+  for acc in list((evaluationDict["acc"].values())):
     accVals.append(acc["accuracy"])
 
-  accKeys = list(out["acc"].keys())
+  accKeys = list(evaluationDict["acc"].keys())
 
-  perClass = out["coco"].pop("PerClassAP")
+  perClass = evaluationDict["coco"].pop("PerClassAP")
 
   perClassKeyList = []
   perClassValList = []
