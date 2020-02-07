@@ -45,19 +45,56 @@ from detectron2.structures import BoxMode
 # from detectron2.config import get_cfg
 # from detectron2.utils.visualizer import Visualizer
 # from detectron2.data import MetadataCatalog
-
-# from google.colab import drive
-# drive.mount('/content/drive')
+import argparse
 
 print("Done importing!")
 
+parser = argparse.ArgumentParser(
+    description="Create the CSV",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
+parser.add_argument(
+  "-d",
+  "--dataset",
+  default="s",
+  type=str,
+  help="The dataset being used."
+)
+
+dataset_used = ""
+if(parser.parse_args().dataset == "s"):
+  dataset_used = "small"
+  print("Dataset being used is the small dataset")
+elif(parser.parse_args().dataset == "l"):
+  dataset_used = "large"
+  print("Dataset being used is the large dataset")
+else:
+  raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
+
+
 """# Directories"""
 
-trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/train/"
-valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/val/"
-imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/images/"
-sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/data.json"
-baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
+trainDirectory      = ""
+valDirectory        = ""
+imageDirectory      = ""
+sourceJsonDirectory = ""
+baseDirectory       = ""
+baseOutputDirectory = ""
+
+if(dataset_used == "small"):
+  trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/train/"
+  valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/val/"
+  imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/images/"
+  sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/data.json"
+  baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
+if(dataset_used == "large"):
+  trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/train/"
+  valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/val/"
+  imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/images/"
+  sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/data.json"
+  baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
 
 """# Dataset
 
@@ -127,7 +164,10 @@ def constructSharkDicts(dataDirectory):
   # Loop over the image annotation values, using idx as the indexer and v to be the value
   for i, values in enumerate(img_annotations):
     # Print every 100 iteration for time tracking
-    if(i % 100 == 0): print(i)
+    if(dataset_used == "small"): 
+      if(i % 100 == 0): print(i)
+    if(dataset_used == "large"): 
+      if(i % 1000 == 0): print(i)
 
     # if(i == 5000): break
 
@@ -141,23 +181,25 @@ def constructSharkDicts(dataDirectory):
     # sharkSide = values["side"]
 
     # No bounding box given: use triangle
-    keypoints = values["keypoints"]
-    tip_yx = keypoints["tip_yx"]
-    leading_yx = keypoints["leading_yx"]
-    trailing_yx = keypoints["trailing_yx"]
+    if(dataset_used == "small"):
+      keypoints = values["keypoints"]
+      tip_yx = keypoints["tip_yx"]
+      leading_yx = keypoints["leading_yx"]
+      trailing_yx = keypoints["trailing_yx"]
+    
+      # Create segmentation polygon
+      # poly = [tip_yx[1],tip_yx[0], leading_yx[1],leading_yx[0], trailing_yx[1],trailing_yx[0]]
 
-    # Create segmentation polygon
-    # poly = [tip_yx[1],tip_yx[0], leading_yx[1],leading_yx[0], trailing_yx[1],trailing_yx[0]]
+      # Get the bounding box dimensions
+      xs = [tip_yx[1], leading_yx[1], trailing_yx[1]]
+      ys = [tip_yx[0], leading_yx[0], trailing_yx[0]]
+      xmax = (max(xs) + 5)
+      ymax = (max(ys) + 5)
+      xmin = (min(xs) - 5)
+      ymin = (min(ys) - 5)
 
-    # Get the bounding box dimensions
-    xs = [tip_yx[1], leading_yx[1], trailing_yx[1]]
-    ys = [tip_yx[0], leading_yx[0], trailing_yx[0]]
-    xmax = (max(xs) + 5)
-    ymax = (max(ys) + 5)
-    xmin = (min(xs) - 5)
-    ymin = (min(ys) - 5)
-
-    # ymin, xmin, ymax, xmax = values["box_ymin_xmin_ymax_xmax"]
+    if(dataset_used == "large"):
+      ymin, xmin, ymax, xmax = values["box_ymin_xmin_ymax_xmax"]
 
     # Check image exists (might not because of how I'm handling dataset)
     if(not os.path.isfile(filename)): continue

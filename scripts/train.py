@@ -64,16 +64,6 @@ dateTime = str(dateTime)
 # from google.colab import drive
 # drive.mount('/content/drive')
 
-"""# Directories"""
-
-trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/train/"
-valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/val/"
-imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/images/"
-sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/data.json"
-baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
-baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/"
-
-
 """# Parser"""
 
 parser = argparse.ArgumentParser(
@@ -108,6 +98,48 @@ parser.add_argument(
   type=int,
   help="The Slurm JOB ID - Not set by the user"
 )
+parser.add_argument(
+  "-d",
+  "--dataset",
+  default="s",
+  type=str,
+  help="The dataset being used."
+)
+
+dataset_used = ""
+if(parser.parse_args().dataset == "s"):
+  dataset_used = "small"
+  print("Dataset being used is the small dataset")
+elif(parser.parse_args().dataset == "l"):
+  dataset_used = "large"
+  print("Dataset being used is the large dataset")
+else:
+  raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
+
+
+"""# Directories"""
+
+trainDirectory      = ""
+valDirectory        = ""
+imageDirectory      = ""
+sourceJsonDirectory = ""
+baseDirectory       = ""
+baseOutputDirectory = ""
+
+if(dataset_used == "small"):
+  trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/train/"
+  valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/val/"
+  imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/images/"
+  sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/data.json"
+  baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
+if(dataset_used == "large"):
+  trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/train/"
+  valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/val/"
+  imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/images/"
+  sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/data.json"
+  baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
 
 
 """# Dataset
@@ -448,7 +480,7 @@ OutputString = "\nDate time: \t"    + dateTime \
              + "\nJobname: \t" + jbName \
              + "\n________________________________________________________" \
              + "\nModel being used: \t" + modelLink \
-             + "\Model index: \t" + str(parser.parse_args().model) \
+             + "\nModel index: \t" + str(parser.parse_args().model) \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
@@ -897,6 +929,70 @@ for i in range(1,11,2):
 evaluationDict["acc"] = KAccDict
 
 torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
+
+
+def EvaluateTrainTopKAccuracy(numK):
+  # Create evaluator object
+  topKEvaluator = TopKAccuracy(numK)
+
+  train_loader = build_detection_test_loader(cfg, "shark_train", mapper=mapper)
+  # Get the accuracy results
+  accuracy_results = inference_on_dataset(trainer.model, train_loader, topKEvaluator)
+  # Extract results
+  total_num   = str(accuracy_results["total_num"])
+  num_correct = str(accuracy_results["num_correct"])
+  top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
+  k           = str(accuracy_results["k"])
+
+  # Create the string we're going to add to the text_file
+  appendString = "\n________________________________________________________" \
+               + "\nNumber correct: \t" + num_correct \
+               + "\nTotal Number: \t\t" + total_num \
+               + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+               + "\n"
+
+  # Append to the file
+  text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+  text_file.write(appendString)
+  text_file.close()
+
+  # Print the file
+  print(  "\nNumber correct: \t" + num_correct \
+        + "\nTotal Number: \t\t" + total_num \
+        + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+        + "\n\n")
+
+  # result = OrderedDict()
+  # result["accuracy"]    = round(accuracy_results["accuracy"]*100,2)
+  # result["num_correct"] = accuracy_results["num_correct"]
+  # result["total_num"]   = accuracy_results["total_num"]
+  # result["k"]           = accuracy_results["k"]
+  # return result
+
+
+# Create the string we're going to add to the text_file
+appendString = "\n________________________________________________________" \
+              + "\nEvaluating the performance on training dataset" \
+              + "\n"
+
+# Append to the file
+text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+text_file.write(appendString)
+text_file.close()
+
+for i in range(1,11,2):
+  EvaluateTopKAccuracy(i)
+
+# Create the string we're going to add to the text_file
+appendString = "\n________________________________________________________" \
+              + "\n"
+
+# Append to the file
+text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+text_file.write(appendString)
+text_file.close()
+
+
 
 ############### END Evaluation ###############
 
