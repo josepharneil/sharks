@@ -56,6 +56,19 @@ import argparse
 import datetime
 from collections import OrderedDict
 
+from termcolor import colored, cprint
+# print(colored('hello', 'red'), colored('world', 'green'))
+
+import datetime
+import logging
+
+from detectron2.utils.events import EventWriter
+from detectron2.utils.events import get_event_storage
+
+
+from fvcore.nn.precise_bn import get_bn_modules, update_bn_stats
+
+
 print("Imports done")
 
 dateTime = datetime.datetime.now()
@@ -217,6 +230,119 @@ dataset_dicts = getSharkTrainDicts() #getSharkDicts("/content/drive/My Drive/sha
 
   # break
 
+
+
+
+############### Custom Classes ###############
+from detectron2.evaluation import COCOEvaluator, inference_on_dataset
+from detectron2.evaluation import DatasetEvaluator
+from detectron2.data import build_detection_test_loader
+
+
+
+
+class TopKAccuracy(DatasetEvaluator):
+  def __init__(self, k=5):
+    self.k = k
+  def reset(self):
+    self.numberCorrect = 0
+    self.totalNumber   = 0
+  # I think this is a single batch, with the inputted images and outputted results
+  def process(self, inputs, outputs):
+    for input,output in zip(inputs,outputs):
+      # Increment the total number no matter what
+      self.totalNumber = self.totalNumber + 1
+
+      # Get the true class ID
+      # print(input)
+      classID = input["classID"]
+      trueSharkID = ClassList[classID]
+
+      # Get the instances object from the outputs
+      instances = output["instances"]
+      
+      # Get the predicted classes for this image
+      classes = instances.get("pred_classes")
+      # Convert classes to more useful sharkIDs
+      predictedSharkIDs = []
+      for c in classes:
+        predictedSharkIDs.append(ClassList[c])
+
+      # Get the list of scores for each prediction
+      scores = instances.get("scores")
+      scores = scores.cpu()
+      scores = scores.numpy()
+      
+      # If there are no predicted scores for his input, skip iteration of the loop
+      if(len(scores) == 0): continue
+
+      # Zip up the predicted shark IDs and scores into a dictionary
+      sharkIDScoreDict = dict(zip(predictedSharkIDs,scores))
+      # Sort it into a list of descending order, in order of the value (the score)
+      sortedSharkIDScoreList = sorted(sharkIDScoreDict.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
+
+      # sortedSharkIDScoreList is a list of tuples: [(sharkID,score),...]
+      # sortedSharkIDScoreList[0] gives you the highest scoring tuple
+      # (sortedSharkIDScoreList[0])[0] gives you the sharkID for the 0th tuple
+
+      # Get the top K shark IDs
+      # topKPredictedIDs = []
+      for i in range(0,self.k):
+        # If the list is shorter than the number of k's we want to look at, 
+        # then break, no need to continue as there are no more predictions to consider
+        if(i >= len(sortedSharkIDScoreList)): break
+        # Extract ith tuple
+        currentTuple = sortedSharkIDScoreList[i]
+        # Get the shark ID
+        currentPredID = currentTuple[0]
+        currentScore = currentTuple[1]
+        # Append this to the top K predictions
+        # topKPredictedIDs.append(currentPredID)
+
+        # We increase the rank of the correct prediction for each equivalence we find
+        # So if there are many predictions with the same score to the correct prediction
+        # we are "lowering" its rank to not consider it as much 
+        # (where rank 0 is the highest)
+        rank = -1
+
+        # # If we're dealing with the true one
+        # if(currentPredID == trueSharkID):
+        #   # Go through all pairs
+        #   for idx,scoreSharkIDPair in enumerate(sortedSharkIDScoreList):
+        #     # If there is an equivalent score
+        #     if(scoreSharkIDPair[1] == currentScore):
+        #       rank = idx
+        #       break
+
+        # If the current predictedID we are considering is the trueSharkID
+        if(currentPredID == trueSharkID):
+          # Compare the correct prediction's score to all other scores
+          for idx,scoreSharkIDPair in enumerate(sortedSharkIDScoreList):
+            # If there is an equivalence in score
+            if(scoreSharkIDPair[1] == currentScore):
+              # If the rank hasn't been initialised, 
+              # set it to the lowest index of this score
+              if(rank == -1): 
+                rank = idx + 1
+              # If the rank has been set, increment
+              else:
+                # Increment the rank
+                # Note, this will occur at least once as we compare it to itself
+                rank = rank + 1
+          # If the rank has exceed the number k we wanted to look at, don't count it
+          if(rank <= self.k):
+            # We increment, and then we don't care about the rest of the k's
+            self.numberCorrect = self.numberCorrect + 1
+            break
+
+  # Return a dictionary of the final result
+  def evaluate(self):
+    # save self.count somewhere, or print it, or return it.
+    accuracy = float(self.numberCorrect) / float(self.totalNumber)
+    return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k}
+
+
+
 """# Dataset Mapping"""
 
 ############### Dataset Mapper ###############
@@ -300,26 +426,364 @@ def mapper(dataset_dict):
 
 ############### END Dataset Mapper ###############
 
+def EvaluateTopKAccuracy(numK,isReturn=False):
+  # Create evaluator object
+  topKEvaluator = TopKAccuracy(numK)
+  # Get the accuracy results
+  val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
+  accuracy_results = inference_on_dataset(trainer.model, val_loader, topKEvaluator)
 
-############### Custom Trainer ###############
+  if(isReturn):
+    return accuracy_results
+  else:
+    # Extract results
+    total_num   = str(accuracy_results["total_num"])
+    num_correct = str(accuracy_results["num_correct"])
+    top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
+    k           = str(accuracy_results["k"])
+
+
+
+    # Create the string we're going to add to the text_file
+    appendString = "\n________________________________________________________" \
+                + "\nNumber correct: \t" + num_correct \
+                + "\nTotal Number: \t\t" + total_num \
+                + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+                + "\n"
+
+    # Append to the file
+    text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+    text_file.write(appendString)
+    text_file.close()
+
+    # Print the file
+    print(  "\nNumber correct: \t" + num_correct \
+          + "\nTotal Number: \t\t" + total_num \
+          + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+          + "\n\n")
+
+    result = OrderedDict()
+    result["accuracy"]    = round(accuracy_results["accuracy"]*100,2)
+    result["num_correct"] = accuracy_results["num_correct"]
+    result["total_num"]   = accuracy_results["total_num"]
+    result["k"]           = accuracy_results["k"]
+    return result
+
+
+def EvaluateTrainTopKAccuracy(numK, isReturn=False):
+  # Create evaluator object
+  topKEvaluator = TopKAccuracy(numK)
+
+  train_loader = build_detection_test_loader(cfg, "shark_train", mapper=mapper)
+  # Get the accuracy results
+  accuracy_results = inference_on_dataset(trainer.model, train_loader, topKEvaluator)
+
+  if(isReturn): 
+    return accuracy_results
+  else:
+    # Extract results
+    total_num   = str(accuracy_results["total_num"])
+    num_correct = str(accuracy_results["num_correct"])
+    top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
+    k           = str(accuracy_results["k"])
+
+    # Create the string we're going to add to the text_file
+    appendString = "\n________________________________________________________" \
+                + "\nNumber correct: \t" + num_correct \
+                + "\nTotal Number: \t\t" + total_num \
+                + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+                + "\n"
+
+    # Append to the file
+    text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+    text_file.write(appendString)
+    text_file.close()
+
+    # Print the file
+    print(  "\nNumber correct: \t" + num_correct \
+          + "\nTotal Number: \t\t" + total_num \
+          + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+          + "\n\n")
+
+    # result = OrderedDict()
+    # result["accuracy"]    = round(accuracy_results["accuracy"]*100,2)
+    # result["num_correct"] = accuracy_results["num_correct"]
+    # result["total_num"]   = accuracy_results["total_num"]
+    # result["k"]           = accuracy_results["k"]
+    # return result
+
+
+class MyCommonMetricPrinter(EventWriter):
+    """
+    Print **common** metrics to the terminal, including
+    iteration time, ETA, memory, all losses, and the learning rate.
+
+    To print something different, please implement a similar printer by yourself.
+    """
+    
+    def __init__(self, max_iter):
+      """
+      Args:
+          max_iter (int): the maximum number of iterations to train.
+              Used to compute ETA.
+      """
+      
+
+      # create logger
+      self.logger = logging.getLogger(__name__)
+      self.logger.setLevel(logging.DEBUG)
+
+      # create console handler and set level to debug
+      ch = logging.StreamHandler()
+      ch.setLevel(logging.DEBUG)
+
+      # create formatter
+      formatter = logging.Formatter('[%(asctime)s - %(name)s]: %(message)s')
+
+      # add formatter to ch
+      ch.setFormatter(formatter)
+
+      # add ch to logger
+      self.logger.addHandler(ch)
+
+      # self.logger.info('info message')
+
+      # self.logger = logging.getLogger("hello")
+      # self.logger = logging.getLogger(__name__)
+      self._max_iter = max_iter
+
+
+    def write(self):
+        # print("called")
+
+        # TRY JUST LOGGING ANYTHING RIGHT HERE???
+        # self.logger.debug('debug message')
+        # I think the only problem right now is that for some reason the logging isn't working
+        # It's getting called...
+        # If I really want to, I could just print the accuracy 
+        #   -> note that none of this is going to the tensorboard (or json), so need to look into how to log that
+
+        storage = get_event_storage()
+        iteration = storage.iter
+
+        data_time, time = None, None
+        eta_string = "N/A"
+        try:
+            data_time = storage.history("data_time").avg(20)
+            time = storage.history("time").global_avg()
+            eta_seconds = storage.history("time").median(1000) * (self._max_iter - iteration)
+            storage.put_scalar("eta_seconds", eta_seconds, smoothing_hint=False)
+            eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+            accuracy_string = "acc"
+        except KeyError:  # they may not exist in the first few iterations (due to warmup)
+            pass
+
+        try:
+            lr = "{:.6f}".format(storage.history("lr").latest())
+        except KeyError:
+            lr = "N/A"
+
+        if torch.cuda.is_available():
+            max_mem_mb = torch.cuda.max_memory_allocated() / 1024.0 / 1024.0
+        else:
+            max_mem_mb = None
+
+        lossesString ="  ".join(["{}: {:.3f}".format(k, v.median(20))
+                          for k, v in storage.histories().items()
+                          if "loss" in k])
+                         
+        timeString = "time: {:.4f}".format(time) if time is not None else ""
+        data_time_string = "data_time: {:.4f}".format(data_time) if data_time is not None else ""
+        memoryString = "max_mem: {:.0f}M".format(max_mem_mb) if max_mem_mb is not None else ""
+
+        # Compute the accuracy
+        trainResult = EvaluateTrainTopKAccuracy(1,isReturn=True)
+        train_accuracy = round(trainResult["accuracy"],2)
+        train_accuracy_string = str(train_accuracy)
+        storage.put_scalar("train_accuracy",train_accuracy)
+
+        testResult = EvaluateTopKAccuracy(1,isReturn=True)
+        test_accuracy = round(testResult["accuracy"],2)
+        test_accuracy_string = str(test_accuracy)
+        storage.put_scalar("test_accuracy",test_accuracy)
+
+
+        
+        # testing
+        # accuracy_string = "temp"
+        # storage.put_scalar("accuracy",0)
+
+        # print(f"{bcolors.WARNING}Warning: No active frommets remain. Continue?{bcolors.ENDC}")
+
+        logRedString = "eta: "+eta_string+"  iter: "+str(iteration)
+        # logString = "eta: "+eta_string+"  iter: "+str(iteration) +"  " +str(lossesString)+"  accuracy: "+accuracy_string+"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
+        logString = "  " +str(lossesString)+"  Train Accuracy: "+train_accuracy_string+"  Test Accuracy: "+test_accuracy_string+"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
+        print(colored(logRedString,"red")+logString)
+
+
+from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
 from detectron2.engine import DefaultTrainer
+import logging
+from detectron2.utils import comm
+from detectron2.engine import hooks
 
 class Trainer(DefaultTrainer):
-    # @classmethod
-    # def build_evaluator(cls, cfg, dataset_name):
-    #     output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
-    #     evaluators = [COCOEvaluator(dataset_name, cfg, True, output_folder)]
-    #     if cfg.MODEL.DENSEPOSE_ON:
-    #         evaluators.append(DensePoseCOCOEvaluator(dataset_name, True, output_folder))
-    #     return DatasetEvaluators(evaluators)
+  # @classmethod
+  # def build_evaluator(cls, cfg, dataset_name):
+  #     output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
+  #     evaluators = [COCOEvaluator(dataset_name, cfg, True, output_folder)]
+  #     if cfg.MODEL.DENSEPOSE_ON:
+  #         evaluators.append(DensePoseCOCOEvaluator(dataset_name, True, output_folder))
+  #     return DatasetEvaluators(evaluators)
 
-    @classmethod
-    def build_test_loader(cls, cfg, dataset_name):
-        return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+  # def __init__(self,cfg):
+    # super().__init__(self,cfg)
 
-    @classmethod
-    def build_train_loader(cls, cfg):
-        return build_detection_train_loader(cfg, mapper=mapper)
+  @classmethod
+  def build_test_loader(cls, cfg, dataset_name):
+    return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+
+  @classmethod
+  def build_train_loader(cls, cfg):
+    return build_detection_train_loader(cfg, mapper=mapper)
+
+  # @classmethod
+  def build_writers(self):
+    """
+    Build a list of writers to be used. By default it contains
+    writers that write metrics to the screen,
+    a json file, and a tensorboard event file respectively.
+    If you'd like a different list of writers, you can overwrite it in
+    your trainer.
+
+    Returns:
+        list[EventWriter]: a list of :class:`EventWriter` objects.
+
+    It is now implemented by:
+
+    .. code-block:: python
+
+        return [
+            CommonMetricPrinter(self.max_iter),
+            JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
+            TensorboardXWriter(self.cfg.OUTPUT_DIR),
+        ]
+
+    """
+    # Assume the default print/log frequency.
+    return [
+        # It may not always print what you want to see, since it prints "common" metrics only.
+        # CommonMetricPrinter(self.max_iter),
+        MyCommonMetricPrinter(self.max_iter),
+        JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
+        TensorboardXWriter(self.cfg.OUTPUT_DIR),
+        # MyTensorboardXWriter(self.cfg.OUTPUT_DIR),
+    ]
+
+  # @classmethod
+  def build_hooks(self):
+    """
+    Build a list of default hooks, including timing, evaluation,
+    checkpointing, lr scheduling, precise BN, writing events.
+
+    Returns:
+        list[HookBase]:
+    """
+    cfg = self.cfg.clone()
+    cfg.defrost()
+    cfg.DATALOADER.NUM_WORKERS = 0  # save some memory and time for PreciseBN
+
+    ret = \
+    [
+      hooks.IterationTimer(),
+      hooks.LRScheduler(self.optimizer, self.scheduler),
+      hooks.PreciseBN(
+          # Run at the same freq as (but before) evaluation.
+          cfg.TEST.EVAL_PERIOD,
+          self.model,
+          # Build a new data loader to not affect training
+          self.build_train_loader(cfg),
+          cfg.TEST.PRECISE_BN.NUM_ITER,
+      )
+      if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)
+      else None,
+    ]
+
+    # Do PreciseBN before checkpointer, because it updates the model and need to
+    # be saved by checkpointer.
+    # This is not always the best: if checkpointing has a different frequency,
+    # some checkpoints may have more precise statistics than others.
+    if comm.is_main_process():
+      ret.append(hooks.PeriodicCheckpointer(self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD))
+
+    def test_and_save_results():
+      self._last_eval_results = self.test(self.cfg, self.model)
+      return self._last_eval_results
+
+    # Do evaluation after checkpointer, because then if it fails,
+    # we can use the saved checkpoint to debug.
+    ret.append(hooks.EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results))
+
+    if comm.is_main_process():
+      numberOfSamples = 20
+      step = -1
+      if(self.max_iter <= numberOfSamples):
+        # Eg, maxiter = 20, so step = 20/2 = 10, take a sample every 10
+        step = int(round(float(self.max_iter)/float(2),2))
+      else:
+        # Eg 10000/20 = 500, so will take a sample every 500 iterations
+        step = float(self.max_iter)/float(numberOfSamples)
+        step = int(round(step,0))
+        if(step < 1): step = 1
+
+      # print("!!!!!!!!!!!!!!STEPS: ", step)
+
+      # run writers in the end, so that evaluation metrics are written
+      ret.append(hooks.PeriodicWriter(self.build_writers(),period=step))
+    return ret
+
+  # @classmethod
+  # def build_model(cls, cfg):
+  #     """
+  #     Returns:
+  #         torch.nn.Module:
+
+  #     It now calls :func:`detectron2.modeling.build_model`.
+  #     Overwrite it if you'd like a different model.
+  #     """
+  #     model = build_model(cfg)
+  #     logger = logging.getLogger(__name__)
+  #     logger.info("Model:\n{}".format(model))
+  #     return model
+
+
+
+
+
+############### END Custom Classes ###############
+
+
+
+
+############### Custom Trainer ###############
+# from detectron2.engine import DefaultTrainer
+
+# class Trainer(DefaultTrainer):
+#     # @classmethod
+#     # def build_evaluator(cls, cfg, dataset_name):
+#     #     output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
+#     #     evaluators = [COCOEvaluator(dataset_name, cfg, True, output_folder)]
+#     #     if cfg.MODEL.DENSEPOSE_ON:
+#     #         evaluators.append(DensePoseCOCOEvaluator(dataset_name, True, output_folder))
+#     #     return DatasetEvaluators(evaluators)
+
+#     @classmethod
+#     def build_test_loader(cls, cfg, dataset_name):
+#         return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+
+#     @classmethod
+#     def build_train_loader(cls, cfg):
+#         return build_detection_train_loader(cfg, mapper=mapper)
 
 ############### END Custom Trainer ###############
 
@@ -391,7 +855,7 @@ cfg.SOLVER.IMS_PER_BATCH = 2
 # learning rate
 # cfg.SOLVER.BASE_LR = 0.0000025  # pick a good LR
 if(parser.parse_args().learning_rate == -1):
-  cfg.SOLVER.BASE_LR = 0.00025  # pick a good LR
+  cfg.SOLVER.BASE_LR = 0.005  # pick a good LR
 else:
   cfg.SOLVER.BASE_LR = parser.parse_args().learning_rate
 
@@ -779,7 +1243,7 @@ text_file.write(appendString)
 text_file.close()
 '''
 
-
+'''
 # k = 1 should be equivalent
 class TopKAccuracy(DatasetEvaluator):
   def __init__(self, k=5):
@@ -880,42 +1344,7 @@ class TopKAccuracy(DatasetEvaluator):
     accuracy = float(self.numberCorrect) / float(self.totalNumber)
     return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k}
 
-
-def EvaluateTopKAccuracy(numK):
-  # Create evaluator object
-  topKEvaluator = TopKAccuracy(numK)
-  # Get the accuracy results
-  accuracy_results = inference_on_dataset(trainer.model, val_loader, topKEvaluator)
-  # Extract results
-  total_num   = str(accuracy_results["total_num"])
-  num_correct = str(accuracy_results["num_correct"])
-  top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
-  k           = str(accuracy_results["k"])
-
-  # Create the string we're going to add to the text_file
-  appendString = "\n________________________________________________________" \
-               + "\nNumber correct: \t" + num_correct \
-               + "\nTotal Number: \t\t" + total_num \
-               + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
-               + "\n"
-
-  # Append to the file
-  text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
-  text_file.write(appendString)
-  text_file.close()
-
-  # Print the file
-  print(  "\nNumber correct: \t" + num_correct \
-        + "\nTotal Number: \t\t" + total_num \
-        + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
-        + "\n\n")
-
-  result = OrderedDict()
-  result["accuracy"]    = round(accuracy_results["accuracy"]*100,2)
-  result["num_correct"] = accuracy_results["num_correct"]
-  result["total_num"]   = accuracy_results["total_num"]
-  result["k"]           = accuracy_results["k"]
-  return result
+'''
 
 
 KAccDict = OrderedDict()
@@ -930,7 +1359,7 @@ evaluationDict["acc"] = KAccDict
 
 torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
 
-
+'''
 def EvaluateTrainTopKAccuracy(numK):
   # Create evaluator object
   topKEvaluator = TopKAccuracy(numK)
@@ -968,7 +1397,7 @@ def EvaluateTrainTopKAccuracy(numK):
   # result["total_num"]   = accuracy_results["total_num"]
   # result["k"]           = accuracy_results["k"]
   # return result
-
+'''
 
 # Create the string we're going to add to the text_file
 appendString = "\n________________________________________________________" \
@@ -981,7 +1410,7 @@ text_file.write(appendString)
 text_file.close()
 
 for i in range(1,11,2):
-  EvaluateTopKAccuracy(i)
+  EvaluateTrainTopKAccuracy(i)
 
 # Create the string we're going to add to the text_file
 appendString = "\n________________________________________________________" \
@@ -1035,7 +1464,8 @@ def AppendToCSV():
 
   # Creation of the csv and adding new keys will be done in a different script
   # Append new values
-  with open("result.csv","a+") as outputCSV:
+  csvFilename = "result_"+dataset_used+".csv"
+  with open(csvFilename,"a+") as outputCSV:
     writer = csv.writer(outputCSV)
     # writer.writerow(resultKeys)
     writer.writerow(resultVals)
