@@ -277,13 +277,13 @@ def inference_on_dataset(model, data_loader, evaluator):
     # logger = logging.getLogger(__name__)
     # logger.info("Start inference on {} images".format(len(data_loader)))
 
-    total = len(data_loader)  # inference data loader must have a fixed length
+    # total = len(data_loader)  # inference data loader must have a fixed length
     if evaluator is None:
         # create a no-op evaluator
         evaluator = DatasetEvaluators([])
     evaluator.reset()
 
-    num_warmup = min(5, total - 1)
+    # num_warmup = min(5, total - 1)
     # start_time = time.perf_counter()
     # total_compute_time = 0
     with inference_context(model), torch.no_grad():
@@ -459,49 +459,95 @@ def mapper(dataset_dict):
   # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
   # Create a copy of the dataset dict
   dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+
+
+  ##### Image Transformations #####
   # Read in the image
   image = utils.read_image(dataset_dict["file_name"], format="BGR")
+  # fileName = dataset_dict["file_name"]
 
-  # cropping
-  # Get boundingbox
+  ## Crop to bounding box ##
+  # Get the bounding box
   bbox = ((dataset_dict["annotations"])[0])["bbox"]
-  # print(bbox)
   xmin,ymin,xmax,ymax = bbox
   w = xmax-xmin
   h = ymax-ymin
 
-  # print(image.shape)
+  # Nudge the crop to be slightly outside of the bounding box
+  nudgedXMin = xmin-15
+  nudgedYMin = ymin-15
+  nudgedW = w+50
+  nudgedH = h+50
 
-  cropT = T.CropTransform(xmin-15,ymin-15,w+50,h+50)
+  # If the bounding boxes go outside of the image dimensions, fix this
+  imageHeight = image.shape[0]
+  imageWidth  = image.shape[1]
+  if(nudgedXMin < 0): nudgedXMin = 0
+  if(nudgedYMin < 0): nudgedYMin = 0
+  if(nudgedXMin+nudgedW >= imageWidth):  nudgedW = imageWidth-1
+  if(nudgedYMin+nudgedH >= imageHeight): nudgedH = imageHeight-1
+
+  # Apply the crop
+  cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
   image = cropT.apply_image(image)
-
-  dataset_dict["height"] = h+15+50
-  dataset_dict["width"] = w+15+50
-
+  # dataset_dict["height"] = h+15+50
+  # dataset_dict["width"] = w+15+50
+  
+  # Add to the list of transforms
   transforms = T.TransformList([cropT])
 
-  # image, tfms = T.apply_transform_gens([T.ResizeShortestEdge(short_edge_length=(640, 672, 704, 736, 768, 800), max_size=1333, sample_style='choice'), T.RandomFlip()], image)
+  ## Scale the image size appropriately ##
+  myNewH = 0
+  myNewW = 0
+  # Scale the longest dimension to 1333, the shorter to 800
+  if(imageHeight > imageWidth): 
+    myNewH = 1333
+    myNewW = 800
+  else:
+    myNewH = 800
+    myNewW = 1333
+
+  # Apply the scaling transform
+  scaleT = T.ScaleTransform(h=imageHeight,w=imageWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+  image = scaleT.apply_image(image.copy())
+
+  # Add this to the list of transforms
+  transforms = transforms + scaleT
+
+  # Set the dimensions
+  dataset_dict["height"] = myNewH
+  dataset_dict["width"] = myNewW
+  
+  ## Apply a random flip ##
   image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
   transforms = transforms + tfms
 
-  dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
+  # Keep these in for now I suppose
+  if(image.shape[0] == 0): 
+    raise ValueError("image shape[0] is 0!: ",print(image.shape),dataset_dict["file_name"])
+  if(image.shape[1] == 0): 
+    raise ValueError("image shape[1] is 0!: ",print(image.shape),dataset_dict["file_name"])
 
+  # Set the image in the dictionary
+  dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+
+  ##### END Image Transformations #####
+
+  # Do remainder of dictionary
   classID = ((dataset_dict["annotations"])[0])["category_id"]
+  dataset_dict["classID"] = classID
 
   annos = \
   [
-      utils.transform_instance_annotations(obj, transforms, image.shape[:2])
-      for obj in dataset_dict.pop("annotations")
-      if obj.get("iscrowd", 0) == 0
+    utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+    for obj in dataset_dict.pop("annotations")
+    if obj.get("iscrowd", 0) == 0
   ]
-  
+
   instances = utils.annotations_to_instances(annos, image.shape[:2])
   dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
-  dataset_dict["classID"] = classID
-
   return dataset_dict
-
 
 
 
@@ -888,12 +934,12 @@ class TensorboardAndLogWriter(EventWriter):
 
     # if(storage )
     # Evaluate accuracy
-    # result_train = EvaluateTrainTopKAccuracy(1,isReturn=True)
-    # result_test  = EvaluateTopKAccuracy(1,isReturn=True)
-    result_train = {}
-    result_train["accuracy"] = -1
-    result_test = {}
-    result_test["accuracy"] = -1
+    result_train = EvaluateTrainTopKAccuracy(1,isReturn=True)
+    result_test  = EvaluateTestTopKAccuracy(1,isReturn=True)
+    # result_train = {}
+    # result_train["accuracy"] = -1
+    # result_test = {}
+    # result_test["accuracy"] = -1
 
     # Add accuracy scalar
     # print(result_train["accuracy"])
@@ -1223,6 +1269,7 @@ cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(modelLink)  # Let training init
 
 # number of images per batch
 cfg.SOLVER.IMS_PER_BATCH = 2
+# cfg.SOLVER.IMS_PER_BATCH = 1 ##TRIED CHANGING THIS
 
 # learning rate
 # cfg.SOLVER.BASE_LR = 0.0000025  # pick a good LR
@@ -1240,6 +1287,7 @@ else:
 
 # Minibatch size PER image - number of regions of interest (ROIs)
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
+# cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
 
 # Number of classes
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
