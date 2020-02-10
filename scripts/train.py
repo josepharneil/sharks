@@ -69,6 +69,8 @@ from detectron2.utils.events import get_event_storage
 from fvcore.nn.precise_bn import get_bn_modules, update_bn_stats
 
 
+# from detectron2.evaluation import inference_on_dataset
+
 print("Imports done")
 
 dateTime = datetime.datetime.now()
@@ -140,18 +142,18 @@ baseDirectory       = ""
 baseOutputDirectory = ""
 
 if(dataset_used == "small"):
-  trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/train/"
-  valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/val/"
-  imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/images/"
+  trainDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/train/"
+  valDirectory        = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/val/"
+  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/images/"
   sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/data.json"
-  baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
 if(dataset_used == "large"):
-  trainDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/train/"
-  valDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/val/"
-  imageDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/images/"
+  trainDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/train/"
+  valDirectory        = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/val/"
+  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/images/"
   sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/data.json"
-  baseDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
 
 
@@ -163,10 +165,10 @@ Construct Dictionary of SharkIDs to Classes
 # Registered in dataset loading
 def getSharkDicts(trainVal):
   if(trainVal == "train"):
-    print("Getting shark train dicts")
+    # print("Getting shark train dicts")
     return getSharkTrainDicts()
   if(trainVal == "val"):
-    print("Getting shark val dicts")
+    # print("Getting shark val dicts")
     return getSharkValDicts()
 
 # Called by getSharkDicts
@@ -199,7 +201,7 @@ shark_metadata = MetadataCatalog.get("shark_train")
 """Visualise to check this worked"""
 
 # dataset_dicts = getSharkDicts("/content/drive/My Drive/sharkdata/train")
-dataset_dicts = getSharkTrainDicts() #getSharkDicts("/content/drive/My Drive/sharkdata/all_data/train")
+# dataset_dicts = getSharkTrainDicts() #getSharkDicts("/content/drive/My Drive/sharkdata/all_data/train")
 # dataset_dicts = getSharkValDicts()
 # print("Done")
 # for dictionary in random.sample(dataset_dicts, 12):
@@ -231,15 +233,115 @@ dataset_dicts = getSharkTrainDicts() #getSharkDicts("/content/drive/My Drive/sha
   # break
 
 
+import time
+from contextlib import contextmanager
+from detectron2.evaluation.evaluator import DatasetEvaluators
+# print(colored('hello', 'red'), colored('world', 'green'))
+
+@contextmanager
+def inference_context(model):
+    """
+    A context where the model is temporarily changed to eval mode,
+    and restored to previous mode afterwards.
+
+    Args:
+        model: a torch Module
+    """
+    training_mode = model.training
+    model.eval()
+    yield
+    model.train(training_mode)
+
+def inference_on_dataset(model, data_loader, evaluator):
+    """
+    Run model on the data_loader and evaluate the metrics with evaluator.
+    Also benchmark the inference speed of `model.forward` accurately.
+    The model will be used in eval mode.
+
+    Args:
+        model (nn.Module): a module which accepts an object from
+            `data_loader` and returns some outputs. It will be temporarily set to `eval` mode.
+
+            If you wish to evaluate a model in `training` mode instead, you can
+            wrap the given model and override its behavior of `.eval()` and `.train()`.
+        data_loader: an iterable object with a length.
+            The elements it generates will be the inputs to the model.
+        evaluator (DatasetEvaluator): the evaluator to run. Use `None` if you only want
+            to benchmark, but don't want to do any evaluation.
+
+    Returns:
+        The return value of `evaluator.evaluate()`
+    """
+    print(colored("Calculating inference...","green"))
+    # num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+    # logger = logging.getLogger(__name__)
+    # logger.info("Start inference on {} images".format(len(data_loader)))
+
+    total = len(data_loader)  # inference data loader must have a fixed length
+    if evaluator is None:
+        # create a no-op evaluator
+        evaluator = DatasetEvaluators([])
+    evaluator.reset()
+
+    num_warmup = min(5, total - 1)
+    # start_time = time.perf_counter()
+    # total_compute_time = 0
+    with inference_context(model), torch.no_grad():
+        for idx, inputs in enumerate(data_loader):
+            # if idx == num_warmup:
+                # start_time = time.perf_counter()
+                # total_compute_time = 0
+
+            # start_compute_time = time.perf_counter()
+            outputs = model(inputs)
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            # total_compute_time += time.perf_counter() - start_compute_time
+            evaluator.process(inputs, outputs)
+
+            # iters_after_start = idx + 1 - num_warmup * int(idx >= num_warmup)
+            # seconds_per_img = total_compute_time / iters_after_start
+            # if idx >= num_warmup * 2 or seconds_per_img > 5:
+                # total_seconds_per_img = (time.perf_counter() - start_time) / iters_after_start
+                # eta = datetime.timedelta(seconds=int(total_seconds_per_img * (total - idx - 1)))
+                # log_every_n_seconds(
+                #     logging.INFO,
+                #     "Inference done {}/{}. {:.4f} s / img. ETA={}".format(
+                #         idx + 1, total, seconds_per_img, str(eta)
+                #     ),
+                #     n=5,
+                # )
+
+    # Measure the time only for this worker (before the synchronization barrier)
+    # total_time = time.perf_counter() - start_time
+    # total_time_str = str(datetime.timedelta(seconds=total_time))
+    # NOTE this format is parsed by grep
+    # logger.info(
+    #     "Total inference time: {} ({:.6f} s / img per device, on {} devices)".format(
+    #         total_time_str, total_time / (total - num_warmup), num_devices
+    #     )
+    # )
+    # total_compute_time_str = str(datetime.timedelta(seconds=int(total_compute_time)))
+    # logger.info(
+    #     "Total inference pure compute time: {} ({:.6f} s / img per device, on {} devices)".format(
+    #         total_compute_time_str, total_compute_time / (total - num_warmup), num_devices
+    #     )
+    # )
+    print(colored("Done calculating","green"))
+
+    results = evaluator.evaluate()
+    # An evaluator may return None when not in main process.
+    # Replace it by an empty dict instead to make it easier for downstream code to handle
+    if results is None:
+        results = {}
+    return results
+
 
 
 ############### Custom Classes ###############
-from detectron2.evaluation import COCOEvaluator, inference_on_dataset
+from detectron2.evaluation import COCOEvaluator#, inference_on_dataset
 from detectron2.evaluation import DatasetEvaluator
 from detectron2.data import build_detection_test_loader
-
-
-
 
 class TopKAccuracy(DatasetEvaluator):
   def __init__(self, k=5):
@@ -375,41 +477,16 @@ def mapper(dataset_dict):
 
   dataset_dict["height"] = h+15+50
   dataset_dict["width"] = w+15+50
-  # cv2_imshow(image)
 
-  # image, transforms = T.apply_transform_gens([cropT], image)
-
-  # print()
-  # print(T.Resize((800, 800)).dtype)
-  # print()
-
-  # T.Transform()
-
-  # print(cropIm.shape)
-
-  # image, transforms = T.apply_transform_gens([T.Resize((800, 800))], image)
-  # image, transforms = T.apply_transform_gens([T.CropTransform(math.floor((xmin-2)),math.floor((ymin-2)),math.floor((w+5)),math.floor((h+5)))], image)
-  # image, transforms = T.apply_transform_gens([utils.gen_crop_transform_with_instance((h,w), (dataset_dict["height"],dataset_dict["width"]), (dataset_dict["annotations"])[0]  )], image)
-  # gen_crop_transform_with_instance((h,w), (dataset_dict["height"],dataset_dict["width"]), dataset_dict)
-  # print(image.size)
-  # transforms = T.TransformList([cropT])
   transforms = T.TransformList([cropT])
 
-  
   # image, tfms = T.apply_transform_gens([T.ResizeShortestEdge(short_edge_length=(640, 672, 704, 736, 768, 800), max_size=1333, sample_style='choice'), T.RandomFlip()], image)
-  # image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
   image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
   transforms = transforms + tfms
 
-  # print(image.shape)
-
-  # print(image.shape)
-  dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+  dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
 
   classID = ((dataset_dict["annotations"])[0])["category_id"]
-  # print("DATA SET DICT ID: ",dataset_dict["classID"])
-
-  # cv2_imshow(image)
 
   annos = \
   [
@@ -417,6 +494,7 @@ def mapper(dataset_dict):
       for obj in dataset_dict.pop("annotations")
       if obj.get("iscrowd", 0) == 0
   ]
+  
   instances = utils.annotations_to_instances(annos, image.shape[:2])
   dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
@@ -424,13 +502,173 @@ def mapper(dataset_dict):
 
   return dataset_dict
 
+
+
+
+from fvcore.common.file_io import PathManager
+from PIL import Image
+
+class DatasetMapper:
+    """
+    A callable which takes a dataset dict in Detectron2 Dataset format,
+    and map it into a format used by the model.
+
+    This is the default callable to be used to map your dataset dict into training data.
+    You may need to follow it to implement your own one for customized logic.
+
+    The callable currently does the following:
+
+    1. Read the image from "file_name"
+    2. Applies cropping/geometric transforms to the image and annotations
+    3. Prepare data and annotations to Tensor and :class:`Instances`
+    """
+
+    def __init__(self, cfg, is_train=True):
+        if cfg.INPUT.CROP.ENABLED and is_train:
+            self.crop_gen = T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE)
+            logging.getLogger(__name__).info("CropGen used in training: " + str(self.crop_gen))
+        else:
+            self.crop_gen = None
+
+        self.tfm_gens = utils.build_transform_gen(cfg, is_train)
+
+        # fmt: off
+        self.img_format     = cfg.INPUT.FORMAT
+        self.mask_on        = cfg.MODEL.MASK_ON
+        self.mask_format    = cfg.INPUT.MASK_FORMAT
+        self.keypoint_on    = cfg.MODEL.KEYPOINT_ON
+        self.load_proposals = cfg.MODEL.LOAD_PROPOSALS
+        # fmt: on
+        if self.keypoint_on and is_train:
+            # Flip only makes sense in training
+            self.keypoint_hflip_indices = utils.create_keypoint_hflip_indices(cfg.DATASETS.TRAIN)
+        else:
+            self.keypoint_hflip_indices = None
+
+        if self.load_proposals:
+            self.min_box_side_len = cfg.MODEL.PROPOSAL_GENERATOR.MIN_SIZE
+            self.proposal_topk = (
+                cfg.DATASETS.PRECOMPUTED_PROPOSAL_TOPK_TRAIN
+                if is_train
+                else cfg.DATASETS.PRECOMPUTED_PROPOSAL_TOPK_TEST
+            )
+        self.is_train = is_train
+
+    def __call__(self, dataset_dict):
+        """
+        Args:
+            dataset_dict (dict): Metadata of one image, in Detectron2 Dataset format.
+
+        Returns:
+            dict: a format that builtin models in detectron2 accept
+        """
+        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+        # USER: Write your own image loading if it's not from a file
+        image = utils.read_image(dataset_dict["file_name"], format=self.img_format)
+        utils.check_image_size(dataset_dict, image)
+
+        if "annotations" not in dataset_dict:
+            image, transforms = T.apply_transform_gens(
+                ([self.crop_gen] if self.crop_gen else []) + self.tfm_gens, image
+            )
+        else:
+            # Crop around an instance if there are instances in the image.
+            # USER: Remove if you don't use cropping
+            if self.crop_gen:
+                crop_tfm = utils.gen_crop_transform_with_instance(
+                    self.crop_gen.get_crop_size(image.shape[:2]),
+                    image.shape[:2],
+                    np.random.choice(dataset_dict["annotations"]),
+                )
+                image = crop_tfm.apply_image(image)
+            image, transforms = T.apply_transform_gens(self.tfm_gens, image)
+            if self.crop_gen:
+                transforms = crop_tfm + transforms
+
+        image_shape = image.shape[:2]  # h, w
+
+        # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
+        # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
+        # Therefore it's important to use torch.Tensor.
+
+        # CROP
+        bbox = ((dataset_dict["annotations"])[0])["bbox"]
+        xmin,ymin,xmax,ymax = bbox
+        w = xmax-xmin
+        h = ymax-ymin
+
+        cropT = T.CropTransform(xmin-15,ymin-15,w+50,h+50)
+        image = cropT.apply_image(image)
+
+        dataset_dict["height"] = h+15+50
+        dataset_dict["width"] = w+15+50
+        transforms = transforms + T.TransformList([cropT])
+        image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
+        transforms = transforms + tfms
+
+        dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1).copy()))
+
+        # USER: Remove if you don't use pre-computed proposals.
+        if self.load_proposals:
+            utils.transform_proposals(
+                dataset_dict, image_shape, transforms, self.min_box_side_len, self.proposal_topk
+            )
+
+        if not self.is_train:
+            # USER: Modify this if you want to keep them for some reason.
+            dataset_dict.pop("annotations", None)
+            dataset_dict.pop("sem_seg_file_name", None)
+            return dataset_dict
+
+        if "annotations" in dataset_dict:
+            # USER: Modify this if you want to keep them for some reason.
+            for anno in dataset_dict["annotations"]:
+                if not self.mask_on:
+                    anno.pop("segmentation", None)
+                if not self.keypoint_on:
+                    anno.pop("keypoints", None)
+
+            # USER: Implement additional transformations if you have other types of data
+            annos = [
+                utils.transform_instance_annotations(
+                    obj, transforms, image_shape, keypoint_hflip_indices=self.keypoint_hflip_indices
+                )
+                for obj in dataset_dict.pop("annotations")
+                if obj.get("iscrowd", 0) == 0
+            ]
+            instances = utils.annotations_to_instances(
+                annos, image_shape, mask_format=self.mask_format
+            )
+            # Create a tight bounding box from masks, useful when image is cropped
+            if self.crop_gen and instances.has("gt_masks"):
+                instances.gt_boxes = instances.gt_masks.get_bounding_boxes()
+            dataset_dict["instances"] = utils.filter_empty_instances(instances)
+
+        # USER: Remove if you don't do semantic/panoptic segmentation.
+        if "sem_seg_file_name" in dataset_dict:
+            with PathManager.open(dataset_dict.pop("sem_seg_file_name"), "rb") as f:
+                sem_seg_gt = Image.open(f)
+                sem_seg_gt = np.asarray(sem_seg_gt, dtype="uint8")
+            sem_seg_gt = transforms.apply_segmentation(sem_seg_gt)
+            sem_seg_gt = torch.as_tensor(sem_seg_gt.astype("long"))
+            dataset_dict["sem_seg"] = sem_seg_gt
+        return dataset_dict
+
+
+
+
+
+
+
 ############### END Dataset Mapper ###############
 
-def EvaluateTopKAccuracy(numK,isReturn=False):
+def EvaluateTestTopKAccuracy(numK,isReturn=False):
+  # with torch.no_grad():
   # Create evaluator object
   topKEvaluator = TopKAccuracy(numK)
   # Get the accuracy results
   val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
+  # val_loader = build_detection_test_loader(cfg, "shark_val", mapper=DatasetMapper(cfg,False))
   accuracy_results = inference_on_dataset(trainer.model, val_loader, topKEvaluator)
 
   if(isReturn):
@@ -471,10 +709,12 @@ def EvaluateTopKAccuracy(numK,isReturn=False):
 
 
 def EvaluateTrainTopKAccuracy(numK, isReturn=False):
+  # with torch.no_grad():
   # Create evaluator object
   topKEvaluator = TopKAccuracy(numK)
 
   train_loader = build_detection_test_loader(cfg, "shark_train", mapper=mapper)
+  # train_loader = build_detection_test_loader(cfg, "shark_train", mapper=DatasetMapper(cfg,False))
   # Get the accuracy results
   accuracy_results = inference_on_dataset(trainer.model, train_loader, topKEvaluator)
 
@@ -512,7 +752,7 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
     # result["k"]           = accuracy_results["k"]
     # return result
 
-
+'''
 class MyCommonMetricPrinter(EventWriter):
     """
     Print **common** metrics to the terminal, including
@@ -574,7 +814,7 @@ class MyCommonMetricPrinter(EventWriter):
             eta_seconds = storage.history("time").median(1000) * (self._max_iter - iteration)
             storage.put_scalar("eta_seconds", eta_seconds, smoothing_hint=False)
             eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-            accuracy_string = "acc"
+            # accuracy_string = "acc"
         except KeyError:  # they may not exist in the first few iterations (due to warmup)
             pass
 
@@ -598,14 +838,14 @@ class MyCommonMetricPrinter(EventWriter):
 
         # Compute the accuracy
         trainResult = EvaluateTrainTopKAccuracy(1,isReturn=True)
-        train_accuracy = round(trainResult["accuracy"],2)
-        train_accuracy_string = str(train_accuracy)
-        storage.put_scalar("train_accuracy",train_accuracy)
+        train_accuracy = round((trainResult["accuracy"]*100),2)
+        train_accuracy_string = str(train_accuracy)+"%"
+        storage.put_scalar("accuracy_train",train_accuracy)
 
         testResult = EvaluateTopKAccuracy(1,isReturn=True)
-        test_accuracy = round(testResult["accuracy"],2)
-        test_accuracy_string = str(test_accuracy)
-        storage.put_scalar("test_accuracy",test_accuracy)
+        test_accuracy = round( (testResult["accuracy"]*100) , 2 )
+        test_accuracy_string = str(test_accuracy)+"%"
+        storage.put_scalar("accuracy_test",test_accuracy)
 
 
         
@@ -619,6 +859,121 @@ class MyCommonMetricPrinter(EventWriter):
         # logString = "eta: "+eta_string+"  iter: "+str(iteration) +"  " +str(lossesString)+"  accuracy: "+accuracy_string+"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
         logString = "  " +str(lossesString)+"  Train Accuracy: "+train_accuracy_string+"  Test Accuracy: "+test_accuracy_string+"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
         print(colored(logRedString,"red")+logString)
+'''
+
+class TensorboardAndLogWriter(EventWriter):
+  """
+  Write all scalars to a tensorboard file.
+  """
+
+  def __init__(self, max_iter: int, log_dir: str, window_size: int = 20, **kwargs):
+    """
+    Args:
+        log_dir (str): the directory to save the output events
+        window_size (int): the scalars will be median-smoothed by this window size
+
+        kwargs: other arguments passed to `torch.utils.tensorboard.SummaryWriter(...)`
+    """
+    self._window_size = window_size
+    from torch.utils.tensorboard import SummaryWriter
+
+    self._writer = SummaryWriter(log_dir, **kwargs)
+
+    self._max_iter = max_iter
+
+
+  def write(self):
+    # Get the storage
+    storage = get_event_storage()
+
+    # if(storage )
+    # Evaluate accuracy
+    # result_train = EvaluateTrainTopKAccuracy(1,isReturn=True)
+    # result_test  = EvaluateTopKAccuracy(1,isReturn=True)
+    result_train = {}
+    result_train["accuracy"] = -1
+    result_test = {}
+    result_test["accuracy"] = -1
+
+    # Add accuracy scalar
+    # print(result_train["accuracy"])
+    # print(result_train["accuracy"]*100)
+    # print(round(result_train["accuracy"]*100,2))
+    accuracy_train = round((result_train["accuracy"]*100),2)
+    accuracy_test  = round((result_test["accuracy"]*100 ),2)
+    
+    storage.put_scalar("accuracy_train",accuracy_train,smoothing_hint=False)
+    storage.put_scalar("accuracy_test",accuracy_test,smoothing_hint=False)
+    # accuracy_test = -1
+
+    # self._writer.add_scalar("accuracy_train", accuracy_train, storage.iter)
+    # self._writer.add_scalar("accuracy_test", accuracy_test, storage.iter)
+
+
+
+    for k, v in storage.latest_with_smoothing_hint(self._window_size).items():
+      # if(k != "accuracy")
+      self._writer.add_scalar(k, v, storage.iter)
+      # print(k,v,storage.iter)
+
+    if len(storage.vis_data) >= 1:
+      for img_name, img, step_num in storage.vis_data:
+        self._writer.add_image(img_name, img, step_num)
+      storage.clear_images()
+
+
+    # Below here: logging
+    # storage = get_event_storage()
+    iteration = storage.iter
+
+    data_time, time = None, None
+    eta_string = "N/A"
+    try:
+        data_time = storage.history("data_time").avg(20)
+        time = storage.history("time").global_avg()
+        eta_seconds = storage.history("time").median(1000) * (self._max_iter - iteration)
+        storage.put_scalar("eta_seconds", eta_seconds, smoothing_hint=False)
+        eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+        # accuracy_string = "acc"
+    except KeyError:  # they may not exist in the first few iterations (due to warmup)
+        pass
+
+    try:
+        lr = "{:.6f}".format(storage.history("lr").latest())
+    except KeyError:
+        lr = "N/A"
+
+    if torch.cuda.is_available():
+        max_mem_mb = torch.cuda.max_memory_allocated() / 1024.0 / 1024.0
+    else:
+        max_mem_mb = None
+
+    lossesString ="  ".join(["{}: {:.3f}".format(k, v.median(20))
+                      for k, v in storage.histories().items()
+                      if "loss" in k])
+                      
+    timeString = "time: {:.4f}".format(time) if time is not None else ""
+    data_time_string = "data_time: {:.4f}".format(data_time) if data_time is not None else ""
+    memoryString = "max_mem: {:.0f}M".format(max_mem_mb) if max_mem_mb is not None else ""
+
+    # Create the accuracy string
+    train_accuracy_string = str(accuracy_train)
+    test_accuracy_string  = str(accuracy_test)
+    
+    # testing
+    # accuracy_string = "temp"
+    # storage.put_scalar("accuracy",0)
+
+    logRedString = "eta: "+eta_string+"  iter: "+str(iteration)
+    # logString = "eta: "+eta_string+"  iter: "+str(iteration) +"  " +str(lossesString)+"  accuracy: "+accuracy_string+"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
+    logString = "  " +str(lossesString)+"  train accuracy: "+train_accuracy_string +"  test accuracy: "+test_accuracy_string +"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
+    print(colored(logRedString,"red")+logString)
+
+
+  def close(self):
+    if hasattr(self, "_writer"):  # doesn't exist when the code fails at import
+      self._writer.close()
+
 
 
 from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
@@ -642,10 +997,12 @@ class Trainer(DefaultTrainer):
   @classmethod
   def build_test_loader(cls, cfg, dataset_name):
     return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+    # return build_detection_test_loader(cfg, dataset_name, mapper=DatasetMapper(cfg,False))
 
   @classmethod
   def build_train_loader(cls, cfg):
     return build_detection_train_loader(cfg, mapper=mapper)
+    # return build_detection_train_loader(cfg, mapper=DatasetMapper(cfg,True))
 
   # @classmethod
   def build_writers(self):
@@ -674,10 +1031,11 @@ class Trainer(DefaultTrainer):
     return [
         # It may not always print what you want to see, since it prints "common" metrics only.
         # CommonMetricPrinter(self.max_iter),
-        MyCommonMetricPrinter(self.max_iter),
+        # MyCommonMetricPrinter(self.max_iter),
         JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-        TensorboardXWriter(self.cfg.OUTPUT_DIR),
+        # TensorboardXWriter(self.cfg.OUTPUT_DIR),
         # MyTensorboardXWriter(self.cfg.OUTPUT_DIR),
+        TensorboardAndLogWriter(self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard"),
     ]
 
   # @classmethod
@@ -725,7 +1083,7 @@ class Trainer(DefaultTrainer):
     ret.append(hooks.EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results))
 
     if comm.is_main_process():
-      numberOfSamples = 20
+      numberOfSamples = 25
       step = -1
       if(self.max_iter <= numberOfSamples):
         # Eg, maxiter = 20, so step = 20/2 = 10, take a sample every 10
@@ -737,9 +1095,10 @@ class Trainer(DefaultTrainer):
         if(step < 1): step = 1
 
       # print("!!!!!!!!!!!!!!STEPS: ", step)
-
+      # ret.append(hooks.PeriodicWriter(self.build_writers()))
       # run writers in the end, so that evaluation metrics are written
       ret.append(hooks.PeriodicWriter(self.build_writers(),period=step))
+      # ret.append(hooks.PeriodicWriter(self.build_writers(),period=(self.max_iter-1)))
     return ret
 
   # @classmethod
@@ -755,10 +1114,6 @@ class Trainer(DefaultTrainer):
   #     logger = logging.getLogger(__name__)
   #     logger.info("Model:\n{}".format(model))
   #     return model
-
-
-
-
 
 ############### END Custom Classes ###############
 
@@ -834,14 +1189,31 @@ cfg.merge_from_file(model_zoo.get_config_file(modelLink))
 # cfg.merge_from_file(model_zoo.get(modelLink,trained=False))#?
 
 # list of the dataset names for training (registered in datasetcatalog)
-cfg.DATASETS.TRAIN = ("shark_train",)
+# cfg.DATASETS.TRAIN = ("shark_train",)
+cfg.DATASETS.TRAIN = ("shark_val",)
 # list of the dataset names for testing (registered in datasetcatalog)
 cfg.DATASETS.TEST = ()
+# cfg.DATASETS.TEST = ("shark_val", )
+
 
 ##random cropping
 # cfg.INPUT.CROP({"ENABLED": False})
 # cfg.INPUT.CROP.ENABLED = True
 ##
+
+# cfg.INPUT.MIN_SIZE_TRAIN = 200
+# cfg.INPUT.MIN_SIZE_TEST  = 200
+# Size of the smallest side of the image during training
+# _C.INPUT.MIN_SIZE_TRAIN = (800,)
+# # Sample size of smallest side by choice or random selection from range give by
+# # INPUT.MIN_SIZE_TRAIN
+# _C.INPUT.MIN_SIZE_TRAIN_SAMPLING = "choice"
+# # Maximum size of the side of the image during training
+# _C.INPUT.MAX_SIZE_TRAIN = 1333
+# # Size of the smallest side of the image during testing. Set to zero to disable resize in testing.
+# _C.INPUT.MIN_SIZE_TEST = 800
+# # Maximum size of the side of the image during testing
+# _C.INPUT.MAX_SIZE_TEST = 1333
 
 # number of data loading threads
 cfg.DATALOADER.NUM_WORKERS = 2
@@ -976,8 +1348,8 @@ trainer.train()
 # Inference:
 cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
 # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7   # set the testing threshold for this model
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.2  # set the testing threshold for this model
-cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.2
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set the testing threshold for this model
+cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.7
 cfg.DATASETS.TEST = ("shark_val", )
 # cfg.DATASETS.TEST = ("shark_train", )
 # Create a simple end-to-end predictor with the given config
@@ -996,8 +1368,9 @@ except AssertionError:
   shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
   # Delete the original 
   os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
-  raise AssertionError("model_final.pth not found!")
+  raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
 
+'''
 # Visualise:
 # from detectron2.utils.visualizer import ColorMode
 # dataset_dicts = getSharkTrainDicts()
@@ -1060,7 +1433,9 @@ for dictionary in random.sample(dataset_dicts, 12):
   cv2.imwrite(imageFilename, img)
   os.chdir(initialPath)
   # filename = cfg.OUTPUT_DIR + "/predictions/" + dictionary["file_name"] + "_" + sharkID + ".jpg"
-  
+
+
+'''
 
 
 
@@ -1069,7 +1444,7 @@ for dictionary in random.sample(dataset_dicts, 12):
 
 
 # Evaluation
-from detectron2.evaluation import COCOEvaluator, inference_on_dataset
+from detectron2.evaluation import COCOEvaluator#, inference_on_dataset
 from detectron2.evaluation import DatasetEvaluator
 from detectron2.data import build_detection_test_loader
 
@@ -1077,6 +1452,7 @@ evaluationDict = OrderedDict()
 
 # The loader for the test data (applies various transformations if we so choose)
 val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
+# val_loader = build_detection_test_loader(cfg, "shark_val", mapper=DatasetMapper(cfg,False))
 
 def COCOEvaluation():
   # Get the coco evaluator
@@ -1350,7 +1726,7 @@ class TopKAccuracy(DatasetEvaluator):
 KAccDict = OrderedDict()
 # Evaulate Accuracy
 for i in range(1,11,2):
-  accResult = EvaluateTopKAccuracy(i)
+  accResult = EvaluateTestTopKAccuracy(i)
   k = accResult["k"]
   key = "top_"+str(k)+"_acc"
   KAccDict[key] = accResult
@@ -1420,7 +1796,6 @@ appendString = "\n________________________________________________________" \
 text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
 text_file.write(appendString)
 text_file.close()
-
 
 
 ############### END Evaluation ###############
