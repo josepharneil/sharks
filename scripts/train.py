@@ -490,13 +490,29 @@ def mapper(dataset_dict):
   # Apply the crop
   cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
   image = cropT.apply_image(image)
+
+  # Apply the crop to the bbox as well
+  bbox = np.asarray(bbox)
+  xmin,ymin,xmax,ymax = bbox
+  bbox = np.array(((xmin,ymin),
+                   (xmin,ymax),
+                   (xmax,ymin),
+                   (xmax,ymax)))
+  bbox = cropT.apply_coords(bbox.copy())
+  xmin = (bbox[0])[0]
+  ymin = (bbox[0])[1]
+  xmax = (bbox[3])[0]
+  ymax = (bbox[3])[1]
+  bbox = [xmin,ymin,xmax,ymax]
+  ((dataset_dict["annotations"])[0])["bbox"] = bbox
   # dataset_dict["height"] = h+15+50
   # dataset_dict["width"] = w+15+50
   
   # Add to the list of transforms
   transforms = T.TransformList([cropT])
 
-  ## Scale the image size appropriately ##
+
+  ## Scale the image size ##
   myNewH = 0
   myNewW = 0
   # Scale the longest dimension to 1333, the shorter to 800
@@ -508,8 +524,23 @@ def mapper(dataset_dict):
     myNewW = 1333
 
   # Apply the scaling transform
-  scaleT = T.ScaleTransform(h=imageHeight,w=imageWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+  scaleT = T.ScaleTransform(h=nudgedH,w=nudgedW,new_h=myNewW,new_w=myNewH,interp="nearest") 
   image = scaleT.apply_image(image.copy())
+
+  # Apply the scaling to the bbox
+  bbox = np.asarray(bbox)
+  xmin,ymin,xmax,ymax = bbox
+  bbox = np.array(((xmin,ymin),
+                  (xmin,ymax),
+                  (xmax,ymin),
+                  (xmax,ymax)))
+  bbox = scaleT.apply_coords(bbox.copy())
+  xmin = (bbox[0])[0]
+  ymin = (bbox[0])[1]
+  xmax = (bbox[3])[0]
+  ymax = (bbox[3])[1]
+  bbox = [ymin,xmin,ymax,xmax]
+  ((dataset_dict["annotations"])[0])["bbox"] = bbox
 
   # Add this to the list of transforms
   transforms = transforms + scaleT
@@ -522,6 +553,8 @@ def mapper(dataset_dict):
   image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
   transforms = transforms + tfms
 
+  ##### END Image Transformations #####
+
   # Keep these in for now I suppose
   if(image.shape[0] == 0): 
     raise ValueError("image shape[0] is 0!: ",print(image.shape),dataset_dict["file_name"])
@@ -531,7 +564,6 @@ def mapper(dataset_dict):
   # Set the image in the dictionary
   dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
 
-  ##### END Image Transformations #####
 
   # Do remainder of dictionary
   classID = ((dataset_dict["annotations"])[0])["category_id"]
@@ -550,161 +582,8 @@ def mapper(dataset_dict):
   return dataset_dict
 
 
-
 from fvcore.common.file_io import PathManager
 from PIL import Image
-
-class DatasetMapper:
-    """
-    A callable which takes a dataset dict in Detectron2 Dataset format,
-    and map it into a format used by the model.
-
-    This is the default callable to be used to map your dataset dict into training data.
-    You may need to follow it to implement your own one for customized logic.
-
-    The callable currently does the following:
-
-    1. Read the image from "file_name"
-    2. Applies cropping/geometric transforms to the image and annotations
-    3. Prepare data and annotations to Tensor and :class:`Instances`
-    """
-
-    def __init__(self, cfg, is_train=True):
-        if cfg.INPUT.CROP.ENABLED and is_train:
-            self.crop_gen = T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE)
-            logging.getLogger(__name__).info("CropGen used in training: " + str(self.crop_gen))
-        else:
-            self.crop_gen = None
-
-        self.tfm_gens = utils.build_transform_gen(cfg, is_train)
-
-        # fmt: off
-        self.img_format     = cfg.INPUT.FORMAT
-        self.mask_on        = cfg.MODEL.MASK_ON
-        self.mask_format    = cfg.INPUT.MASK_FORMAT
-        self.keypoint_on    = cfg.MODEL.KEYPOINT_ON
-        self.load_proposals = cfg.MODEL.LOAD_PROPOSALS
-        # fmt: on
-        if self.keypoint_on and is_train:
-            # Flip only makes sense in training
-            self.keypoint_hflip_indices = utils.create_keypoint_hflip_indices(cfg.DATASETS.TRAIN)
-        else:
-            self.keypoint_hflip_indices = None
-
-        if self.load_proposals:
-            self.min_box_side_len = cfg.MODEL.PROPOSAL_GENERATOR.MIN_SIZE
-            self.proposal_topk = (
-                cfg.DATASETS.PRECOMPUTED_PROPOSAL_TOPK_TRAIN
-                if is_train
-                else cfg.DATASETS.PRECOMPUTED_PROPOSAL_TOPK_TEST
-            )
-        self.is_train = is_train
-
-    def __call__(self, dataset_dict):
-        """
-        Args:
-            dataset_dict (dict): Metadata of one image, in Detectron2 Dataset format.
-
-        Returns:
-            dict: a format that builtin models in detectron2 accept
-        """
-        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        # USER: Write your own image loading if it's not from a file
-        image = utils.read_image(dataset_dict["file_name"], format=self.img_format)
-        utils.check_image_size(dataset_dict, image)
-
-        if "annotations" not in dataset_dict:
-            image, transforms = T.apply_transform_gens(
-                ([self.crop_gen] if self.crop_gen else []) + self.tfm_gens, image
-            )
-        else:
-            # Crop around an instance if there are instances in the image.
-            # USER: Remove if you don't use cropping
-            if self.crop_gen:
-                crop_tfm = utils.gen_crop_transform_with_instance(
-                    self.crop_gen.get_crop_size(image.shape[:2]),
-                    image.shape[:2],
-                    np.random.choice(dataset_dict["annotations"]),
-                )
-                image = crop_tfm.apply_image(image)
-            image, transforms = T.apply_transform_gens(self.tfm_gens, image)
-            if self.crop_gen:
-                transforms = crop_tfm + transforms
-
-        image_shape = image.shape[:2]  # h, w
-
-        # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
-        # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
-        # Therefore it's important to use torch.Tensor.
-
-        # CROP
-        bbox = ((dataset_dict["annotations"])[0])["bbox"]
-        xmin,ymin,xmax,ymax = bbox
-        w = xmax-xmin
-        h = ymax-ymin
-
-        cropT = T.CropTransform(xmin-15,ymin-15,w+50,h+50)
-        image = cropT.apply_image(image)
-
-        dataset_dict["height"] = h+15+50
-        dataset_dict["width"] = w+15+50
-        transforms = transforms + T.TransformList([cropT])
-        image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
-        transforms = transforms + tfms
-
-        dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1).copy()))
-
-        # USER: Remove if you don't use pre-computed proposals.
-        if self.load_proposals:
-            utils.transform_proposals(
-                dataset_dict, image_shape, transforms, self.min_box_side_len, self.proposal_topk
-            )
-
-        if not self.is_train:
-            # USER: Modify this if you want to keep them for some reason.
-            dataset_dict.pop("annotations", None)
-            dataset_dict.pop("sem_seg_file_name", None)
-            return dataset_dict
-
-        if "annotations" in dataset_dict:
-            # USER: Modify this if you want to keep them for some reason.
-            for anno in dataset_dict["annotations"]:
-                if not self.mask_on:
-                    anno.pop("segmentation", None)
-                if not self.keypoint_on:
-                    anno.pop("keypoints", None)
-
-            # USER: Implement additional transformations if you have other types of data
-            annos = [
-                utils.transform_instance_annotations(
-                    obj, transforms, image_shape, keypoint_hflip_indices=self.keypoint_hflip_indices
-                )
-                for obj in dataset_dict.pop("annotations")
-                if obj.get("iscrowd", 0) == 0
-            ]
-            instances = utils.annotations_to_instances(
-                annos, image_shape, mask_format=self.mask_format
-            )
-            # Create a tight bounding box from masks, useful when image is cropped
-            if self.crop_gen and instances.has("gt_masks"):
-                instances.gt_boxes = instances.gt_masks.get_bounding_boxes()
-            dataset_dict["instances"] = utils.filter_empty_instances(instances)
-
-        # USER: Remove if you don't do semantic/panoptic segmentation.
-        if "sem_seg_file_name" in dataset_dict:
-            with PathManager.open(dataset_dict.pop("sem_seg_file_name"), "rb") as f:
-                sem_seg_gt = Image.open(f)
-                sem_seg_gt = np.asarray(sem_seg_gt, dtype="uint8")
-            sem_seg_gt = transforms.apply_segmentation(sem_seg_gt)
-            sem_seg_gt = torch.as_tensor(sem_seg_gt.astype("long"))
-            dataset_dict["sem_seg"] = sem_seg_gt
-        return dataset_dict
-
-
-
-
-
-
 
 ############### END Dataset Mapper ###############
 
@@ -714,7 +593,6 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
   topKEvaluator = TopKAccuracy(numK)
   # Get the accuracy results
   val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
-  # val_loader = build_detection_test_loader(cfg, "shark_val", mapper=DatasetMapper(cfg,False))
   accuracy_results = inference_on_dataset(trainer.model, val_loader, topKEvaluator)
 
   if(isReturn):
@@ -760,7 +638,6 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
   topKEvaluator = TopKAccuracy(numK)
 
   train_loader = build_detection_test_loader(cfg, "shark_train", mapper=mapper)
-  # train_loader = build_detection_test_loader(cfg, "shark_train", mapper=DatasetMapper(cfg,False))
   # Get the accuracy results
   accuracy_results = inference_on_dataset(trainer.model, train_loader, topKEvaluator)
 
@@ -798,114 +675,6 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
     # result["k"]           = accuracy_results["k"]
     # return result
 
-'''
-class MyCommonMetricPrinter(EventWriter):
-    """
-    Print **common** metrics to the terminal, including
-    iteration time, ETA, memory, all losses, and the learning rate.
-
-    To print something different, please implement a similar printer by yourself.
-    """
-    
-    def __init__(self, max_iter):
-      """
-      Args:
-          max_iter (int): the maximum number of iterations to train.
-              Used to compute ETA.
-      """
-      
-
-      # create logger
-      self.logger = logging.getLogger(__name__)
-      self.logger.setLevel(logging.DEBUG)
-
-      # create console handler and set level to debug
-      ch = logging.StreamHandler()
-      ch.setLevel(logging.DEBUG)
-
-      # create formatter
-      formatter = logging.Formatter('[%(asctime)s - %(name)s]: %(message)s')
-
-      # add formatter to ch
-      ch.setFormatter(formatter)
-
-      # add ch to logger
-      self.logger.addHandler(ch)
-
-      # self.logger.info('info message')
-
-      # self.logger = logging.getLogger("hello")
-      # self.logger = logging.getLogger(__name__)
-      self._max_iter = max_iter
-
-
-    def write(self):
-        # print("called")
-
-        # TRY JUST LOGGING ANYTHING RIGHT HERE???
-        # self.logger.debug('debug message')
-        # I think the only problem right now is that for some reason the logging isn't working
-        # It's getting called...
-        # If I really want to, I could just print the accuracy 
-        #   -> note that none of this is going to the tensorboard (or json), so need to look into how to log that
-
-        storage = get_event_storage()
-        iteration = storage.iter
-
-        data_time, time = None, None
-        eta_string = "N/A"
-        try:
-            data_time = storage.history("data_time").avg(20)
-            time = storage.history("time").global_avg()
-            eta_seconds = storage.history("time").median(1000) * (self._max_iter - iteration)
-            storage.put_scalar("eta_seconds", eta_seconds, smoothing_hint=False)
-            eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-            # accuracy_string = "acc"
-        except KeyError:  # they may not exist in the first few iterations (due to warmup)
-            pass
-
-        try:
-            lr = "{:.6f}".format(storage.history("lr").latest())
-        except KeyError:
-            lr = "N/A"
-
-        if torch.cuda.is_available():
-            max_mem_mb = torch.cuda.max_memory_allocated() / 1024.0 / 1024.0
-        else:
-            max_mem_mb = None
-
-        lossesString ="  ".join(["{}: {:.3f}".format(k, v.median(20))
-                          for k, v in storage.histories().items()
-                          if "loss" in k])
-                         
-        timeString = "time: {:.4f}".format(time) if time is not None else ""
-        data_time_string = "data_time: {:.4f}".format(data_time) if data_time is not None else ""
-        memoryString = "max_mem: {:.0f}M".format(max_mem_mb) if max_mem_mb is not None else ""
-
-        # Compute the accuracy
-        trainResult = EvaluateTrainTopKAccuracy(1,isReturn=True)
-        train_accuracy = round((trainResult["accuracy"]*100),2)
-        train_accuracy_string = str(train_accuracy)+"%"
-        storage.put_scalar("accuracy_train",train_accuracy)
-
-        testResult = EvaluateTopKAccuracy(1,isReturn=True)
-        test_accuracy = round( (testResult["accuracy"]*100) , 2 )
-        test_accuracy_string = str(test_accuracy)+"%"
-        storage.put_scalar("accuracy_test",test_accuracy)
-
-
-        
-        # testing
-        # accuracy_string = "temp"
-        # storage.put_scalar("accuracy",0)
-
-        # print(f"{bcolors.WARNING}Warning: No active frommets remain. Continue?{bcolors.ENDC}")
-
-        logRedString = "eta: "+eta_string+"  iter: "+str(iteration)
-        # logString = "eta: "+eta_string+"  iter: "+str(iteration) +"  " +str(lossesString)+"  accuracy: "+accuracy_string+"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
-        logString = "  " +str(lossesString)+"  Train Accuracy: "+train_accuracy_string+"  Test Accuracy: "+test_accuracy_string+"  "+timeString+"  "+data_time_string+"  "+"lr: "+str(lr)+"  "+memoryString
-        print(colored(logRedString,"red")+logString)
-'''
 
 class TensorboardAndLogWriter(EventWriter):
   """
@@ -932,14 +701,13 @@ class TensorboardAndLogWriter(EventWriter):
     # Get the storage
     storage = get_event_storage()
 
-    # if(storage )
     # Evaluate accuracy
-    result_train = EvaluateTrainTopKAccuracy(1,isReturn=True)
-    result_test  = EvaluateTestTopKAccuracy(1,isReturn=True)
-    # result_train = {}
-    # result_train["accuracy"] = -1
-    # result_test = {}
-    # result_test["accuracy"] = -1
+    # result_train = EvaluateTrainTopKAccuracy(1,isReturn=True)
+    # result_test  = EvaluateTestTopKAccuracy(1,isReturn=True)
+    result_train = {}
+    result_train["accuracy"] = -1
+    result_test = {}
+    result_test["accuracy"] = -1
 
     # Add accuracy scalar
     # print(result_train["accuracy"])
@@ -949,7 +717,7 @@ class TensorboardAndLogWriter(EventWriter):
     accuracy_test  = round((result_test["accuracy"]*100 ),2)
     
     storage.put_scalar("accuracy_train",accuracy_train,smoothing_hint=False)
-    storage.put_scalar("accuracy_test",accuracy_test,smoothing_hint=False)
+    storage.put_scalar("accuracy_test" ,accuracy_test ,smoothing_hint=False)
     # accuracy_test = -1
 
     # self._writer.add_scalar("accuracy_train", accuracy_train, storage.iter)
@@ -1043,12 +811,10 @@ class Trainer(DefaultTrainer):
   @classmethod
   def build_test_loader(cls, cfg, dataset_name):
     return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
-    # return build_detection_test_loader(cfg, dataset_name, mapper=DatasetMapper(cfg,False))
 
   @classmethod
   def build_train_loader(cls, cfg):
     return build_detection_train_loader(cfg, mapper=mapper)
-    # return build_detection_train_loader(cfg, mapper=DatasetMapper(cfg,True))
 
   # @classmethod
   def build_writers(self):
@@ -1162,31 +928,6 @@ class Trainer(DefaultTrainer):
   #     return model
 
 ############### END Custom Classes ###############
-
-
-
-
-############### Custom Trainer ###############
-# from detectron2.engine import DefaultTrainer
-
-# class Trainer(DefaultTrainer):
-#     # @classmethod
-#     # def build_evaluator(cls, cfg, dataset_name):
-#     #     output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
-#     #     evaluators = [COCOEvaluator(dataset_name, cfg, True, output_folder)]
-#     #     if cfg.MODEL.DENSEPOSE_ON:
-#     #         evaluators.append(DensePoseCOCOEvaluator(dataset_name, True, output_folder))
-#     #     return DatasetEvaluators(evaluators)
-
-#     @classmethod
-#     def build_test_loader(cls, cfg, dataset_name):
-#         return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
-
-#     @classmethod
-#     def build_train_loader(cls, cfg):
-#         return build_detection_train_loader(cfg, mapper=mapper)
-
-############### END Custom Trainer ###############
 
 
 ############### Training Configuration ###############
@@ -1364,7 +1105,7 @@ OutputString = "\nDate time: \t"    + dateTime \
              + "\nJobname: \t" + jbName \
              + "\n________________________________________________________" \
              + "\nModel being used: \t" + modelLink \
-             + "\nModel index: \t" + str(parser.parse_args().model) \
+             + "\nModel index: \t\t" + str(parser.parse_args().model) \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
@@ -1384,11 +1125,6 @@ text_file.close()
 trainer.resume_or_load(resume=False)
 trainer.train()
 
-# Commented out IPython magic to ensure Python compatibility.
-# Look at training curves in tensorboard:
-# !kill 1825
-# %load_ext tensorboard
-# %tensorboard --logdir output
 ############### END Training ###############
 
 """# Inference and Evaluation"""
@@ -1482,9 +1218,7 @@ for dictionary in random.sample(dataset_dicts, 12):
   os.chdir(initialPath)
   # filename = cfg.OUTPUT_DIR + "/predictions/" + dictionary["file_name"] + "_" + sharkID + ".jpg"
 
-
 '''
-
 
 
 
@@ -1500,7 +1234,6 @@ evaluationDict = OrderedDict()
 
 # The loader for the test data (applies various transformations if we so choose)
 val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
-# val_loader = build_detection_test_loader(cfg, "shark_val", mapper=DatasetMapper(cfg,False))
 
 def COCOEvaluation():
   # Get the coco evaluator
@@ -1783,45 +1516,6 @@ evaluationDict["acc"] = KAccDict
 
 torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
 
-'''
-def EvaluateTrainTopKAccuracy(numK):
-  # Create evaluator object
-  topKEvaluator = TopKAccuracy(numK)
-
-  train_loader = build_detection_test_loader(cfg, "shark_train", mapper=mapper)
-  # Get the accuracy results
-  accuracy_results = inference_on_dataset(trainer.model, train_loader, topKEvaluator)
-  # Extract results
-  total_num   = str(accuracy_results["total_num"])
-  num_correct = str(accuracy_results["num_correct"])
-  top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
-  k           = str(accuracy_results["k"])
-
-  # Create the string we're going to add to the text_file
-  appendString = "\n________________________________________________________" \
-               + "\nNumber correct: \t" + num_correct \
-               + "\nTotal Number: \t\t" + total_num \
-               + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
-               + "\n"
-
-  # Append to the file
-  text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
-  text_file.write(appendString)
-  text_file.close()
-
-  # Print the file
-  print(  "\nNumber correct: \t" + num_correct \
-        + "\nTotal Number: \t\t" + total_num \
-        + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
-        + "\n\n")
-
-  # result = OrderedDict()
-  # result["accuracy"]    = round(accuracy_results["accuracy"]*100,2)
-  # result["num_correct"] = accuracy_results["num_correct"]
-  # result["total_num"]   = accuracy_results["total_num"]
-  # result["k"]           = accuracy_results["k"]
-  # return result
-'''
 
 # Create the string we're going to add to the text_file
 appendString = "\n________________________________________________________" \
@@ -1900,9 +1594,9 @@ AppendToCSV()
 ### Move the Slurm file ###
 # Get the jobname
 jobName = str(parser.parse_args().jobid)
-print("Moving ",jobName)
 # Create the file name
 filename = "slurm-"+jobName+".out"
+print("Moving ",filename)
 # Copy the file
 shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
 # Delete the original 
