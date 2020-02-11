@@ -492,6 +492,8 @@ def mapper(dataset_dict):
   image = cropT.apply_image(image)
 
   # Apply the crop to the bbox as well
+  # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
+  """
   bbox = np.asarray(bbox)
   xmin,ymin,xmax,ymax = bbox
   bbox = np.array(((xmin,ymin),
@@ -505,49 +507,63 @@ def mapper(dataset_dict):
   ymax = (bbox[3])[1]
   bbox = [xmin,ymin,xmax,ymax]
   ((dataset_dict["annotations"])[0])["bbox"] = bbox
-  # dataset_dict["height"] = h+15+50
-  # dataset_dict["width"] = w+15+50
+  """
+
+  dataset_dict["height"] = nudgedH
+  dataset_dict["width"]  = nudgedW
   
   # Add to the list of transforms
   transforms = T.TransformList([cropT])
 
 
   ## Scale the image size ##
-  myNewH = 0
-  myNewW = 0
-  # Scale the longest dimension to 1333, the shorter to 800
-  if(imageHeight > imageWidth): 
-    myNewH = 1333
-    myNewW = 800
-  else:
-    myNewH = 800
-    myNewW = 1333
+  thresholdDimension = 1000
+  # Downscale only at this threshold
+  if(nudgedH > thresholdDimension or nudgedW > thresholdDimension):
+    myNewH = 0
+    myNewW = 0
+    # Scale the longest dimension to 1333, the shorter to 800
+    if(nudgedH > nudgedW): 
+      myNewH = thresholdDimension
+      ratio = nudgedH/float(myNewH)
+      myNewW = nudgedW/float(ratio)
+      myNewW = int(round(myNewW))
+      # myNewW = 800
+    else:
+      # myNewH = 800
+      myNewW = thresholdDimension
+      ratio = nudgedW/float(myNewW)
+      myNewH = nudgedH/float(ratio)
+      myNewH = int(round(myNewH))
 
-  # Apply the scaling transform
-  scaleT = T.ScaleTransform(h=nudgedH,w=nudgedW,new_h=myNewW,new_w=myNewH,interp="nearest") 
-  image = scaleT.apply_image(image.copy())
+    # Apply the scaling transform
+    scaleT = T.ScaleTransform(h=nudgedH,w=nudgedW,new_h=myNewW,new_w=myNewH,interp="nearest") 
+    image = scaleT.apply_image(image.copy())
 
-  # Apply the scaling to the bbox
-  bbox = np.asarray(bbox)
-  xmin,ymin,xmax,ymax = bbox
-  bbox = np.array(((xmin,ymin),
-                  (xmin,ymax),
-                  (xmax,ymin),
-                  (xmax,ymax)))
-  bbox = scaleT.apply_coords(bbox.copy())
-  xmin = (bbox[0])[0]
-  ymin = (bbox[0])[1]
-  xmax = (bbox[3])[0]
-  ymax = (bbox[3])[1]
-  bbox = [ymin,xmin,ymax,xmax]
-  ((dataset_dict["annotations"])[0])["bbox"] = bbox
+    # Apply the scaling to the bbox
+    # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
+    """
+    bbox = np.asarray(bbox)
+    xmin,ymin,xmax,ymax = bbox
+    bbox = np.array(((xmin,ymin),
+                    (xmin,ymax),
+                    (xmax,ymin),
+                    (xmax,ymax)))
+    bbox = scaleT.apply_coords(bbox.copy())
+    xmin = (bbox[0])[0]
+    ymin = (bbox[0])[1]
+    xmax = (bbox[3])[0]
+    ymax = (bbox[3])[1]
+    bbox = [ymin,xmin,ymax,xmax]
+    ((dataset_dict["annotations"])[0])["bbox"] = bbox
+    """
 
-  # Add this to the list of transforms
-  transforms = transforms + scaleT
+    # Add this to the list of transforms
+    transforms = transforms + scaleT
 
-  # Set the dimensions
-  dataset_dict["height"] = myNewH
-  dataset_dict["width"] = myNewW
+    # Set the dimensions
+    dataset_dict["height"] = myNewH
+    dataset_dict["width"]  = myNewW
   
   ## Apply a random flip ##
   image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
