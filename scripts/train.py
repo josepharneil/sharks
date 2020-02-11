@@ -1115,6 +1115,7 @@ print("Model being used: ",modelLink)
 print("Model index: ",parser.parse_args().model)
 print("Learning rate: ",cfg.SOLVER.BASE_LR)
 print("Max iterations: ",cfg.SOLVER.MAX_ITER)
+print("Images per batch:",cfg.SOLVER.IMS_PER_BATCH)
 print("Number of classes: ",cfg.MODEL.RETINANET.NUM_CLASSES)
 jbName = str(parser.parse_args().jobid)
 OutputString = "\nDate time: \t"    + dateTime \
@@ -1124,6 +1125,7 @@ OutputString = "\nDate time: \t"    + dateTime \
              + "\nModel index: \t\t" + str(parser.parse_args().model) \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
+             + "\nImages per batch: \t"     + str(cfg.SOLVER.IMS_PER_BATCH) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
              + "\n________________________________________________________" \
              + "\n"
@@ -1326,6 +1328,7 @@ parameterDict["model_index"] = parser.parse_args().model
 parameterDict["lr"] = cfg.SOLVER.BASE_LR
 parameterDict["max_iter"] = cfg.SOLVER.MAX_ITER
 parameterDict["batch_size_per_image"] = cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
+parameterDict["images_per_batch"] = cfg.SOLVER.IMS_PER_BATCH
 parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
 parameterDict["transforms"] = "Crop to bounding box"
 
