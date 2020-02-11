@@ -976,8 +976,8 @@ cfg.merge_from_file(model_zoo.get_config_file(modelLink))
 # cfg.merge_from_file(model_zoo.get(modelLink,trained=False))#?
 
 # list of the dataset names for training (registered in datasetcatalog)
-# cfg.DATASETS.TRAIN = ("shark_train",)
-cfg.DATASETS.TRAIN = ("shark_val",)
+cfg.DATASETS.TRAIN = ("shark_train",)
+# cfg.DATASETS.TRAIN = ("shark_val",)
 # list of the dataset names for testing (registered in datasetcatalog)
 cfg.DATASETS.TEST = ()
 # cfg.DATASETS.TEST = ("shark_val", )
