@@ -118,7 +118,14 @@ parser.add_argument(
   "--dataset",
   default="s",
   type=str,
-  help="The dataset being used."
+  help="The dataset being used"
+)
+parser.add_argument(
+  "-a",
+  "--accuracy",
+  default=0,
+  type=int,
+  help="Whether to track accuracy or not during training (this is *very* intensive)"
 )
 
 dataset_used = ""
@@ -718,12 +725,14 @@ class TensorboardAndLogWriter(EventWriter):
     storage = get_event_storage()
 
     # Evaluate accuracy
-    # result_train = EvaluateTrainTopKAccuracy(1,isReturn=True)
-    # result_test  = EvaluateTestTopKAccuracy(1,isReturn=True)
-    result_train = {}
-    result_train["accuracy"] = -1
-    result_test = {}
-    result_test["accuracy"] = -1
+    if(parser.parse_args().accuracy == 0):
+      result_train = {}
+      result_train["accuracy"] = -1
+      result_test = {}
+      result_test["accuracy"] = -1
+    else:
+      result_train = EvaluateTrainTopKAccuracy(1,isReturn=True)
+      result_test  = EvaluateTestTopKAccuracy(1,isReturn=True)
 
     # Add accuracy scalar
     # print(result_train["accuracy"])
