@@ -462,6 +462,58 @@ from detectron2.data import transforms as T
 from detectron2.data import detection_utils as utils
 import copy
 
+from PIL import Image
+from torchvision.transforms.functional import _get_inverse_affine_matrix
+from detectron2.data.transforms.transform import Transform
+
+class RandomAffineTransform(Transform):
+  def __init__(self, imageSize, angle=0, translate=(0,0), scale=1):
+    center = (imageSize[0] * 0.5 + 0.5, imageSize[1] * 0.5 + 0.5)
+    shear = (np.random.uniform(-15,15),np.random.uniform(-15,15))
+
+    self.invAffMat = _get_inverse_affine_matrix(center=center, angle=angle, translate=translate, scale=scale, shear=shear)
+
+    invAffM = np.mat([ [self.invAffMat[0],self.invAffMat[1],self.invAffMat[2] ],
+                       [self.invAffMat[3],self.invAffMat[4],self.invAffMat[5] ],
+                       [0        ,0        ,1                  ] ])
+    affMat = np.linalg.inv(invAffM)
+    self.affMat = affMat.item(0),affMat.item(1),affMat.item(2),affMat.item(3),affMat.item(4),affMat.item(5)
+
+  def apply_affine(self,x,y):
+    a,b,c,d,e,f = self.affMat
+    newX = a*x + b*y + c
+    newY = d*x + e*y + f
+    return newX,newY
+
+  def apply_image(self, image):
+    PILImage = Image.fromarray(image)
+    output_size = PILImage.size
+    AFFImage = PILImage.transform(size=output_size,method=Image.AFFINE,data=self.invAffMat,resample=0)
+    return np.array(AFFImage)
+
+  def apply_coords(self, coords):
+    xmin,ymin,xmax,ymax = coords
+    p0,p1,p2,p3=(xmin,ymin),(xmax,ymax),(xmax,ymin),(xmin,ymax)
+
+    # Apply the affine equation
+    p0 = apply_affine(p0[0],p0[1])
+    p1 = apply_affine(p1[0],p1[1])
+    p2 = apply_affine(p2[0],p2[1])
+    p3 = apply_affine(p3[0],p3[1])  
+
+    # Get the box min maxes
+    xs = [p0[0],p1[0],p2[0],p3[0]]
+    ys = [p0[1],p1[1],p2[1],p3[1]]
+    xmin = int(round(min(xs)))
+    ymin = int(round(min(ys)))
+    xmax = int(round(max(xs)))
+    ymax = int(round(max(ys)))
+
+    # Set the new bbox in the dictionary
+    bbox = [xmin,ymin,xmax,ymax]
+    return bbox
+  
+
 def mapper(dataset_dict):
   # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
   # Create a copy of the dataset dict
@@ -522,9 +574,12 @@ def mapper(dataset_dict):
   # Add to the list of transforms
   transforms = T.TransformList([cropT])
 
-
   ## Scale the image size ##
   thresholdDimension = 1000
+  if(dataset_used == "large"):
+    thresholdDimension = 500
+  thresholdDimension = 800
+
   # Downscale only at this threshold
   if(nudgedH > thresholdDimension or nudgedW > thresholdDimension):
     myNewH = 0
@@ -575,6 +630,16 @@ def mapper(dataset_dict):
   ## Apply a random flip ##
   image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
   transforms = transforms + tfms
+
+  # Apply Other Transforms ##
+  image, tfms = T.apply_transform_gens([T.RandomBrightness(0.4,1.6),T.RandomContrast(0.4,1.6),T.RandomSaturation(0.5,1.5),T.RandomLighting(1.2)], image)
+  transforms = transforms + tfms
+
+  ## Apply random affine (actually just a shear) ##
+  PILImage = Image.fromarray(image)
+  RandAffT = RandomAffineTransform(PILImage.size)
+  image = RandAffT.apply_image(image.copy())
+  transforms = transforms + RandAffT
 
   ##### END Image Transformations #####
 
@@ -1007,26 +1072,6 @@ cfg.DATASETS.TRAIN = ("shark_train",)
 cfg.DATASETS.TEST = ()
 # cfg.DATASETS.TEST = ("shark_val", )
 
-
-##random cropping
-# cfg.INPUT.CROP({"ENABLED": False})
-# cfg.INPUT.CROP.ENABLED = True
-##
-
-# cfg.INPUT.MIN_SIZE_TRAIN = 200
-# cfg.INPUT.MIN_SIZE_TEST  = 200
-# Size of the smallest side of the image during training
-# _C.INPUT.MIN_SIZE_TRAIN = (800,)
-# # Sample size of smallest side by choice or random selection from range give by
-# # INPUT.MIN_SIZE_TRAIN
-# _C.INPUT.MIN_SIZE_TRAIN_SAMPLING = "choice"
-# # Maximum size of the side of the image during training
-# _C.INPUT.MAX_SIZE_TRAIN = 1333
-# # Size of the smallest side of the image during testing. Set to zero to disable resize in testing.
-# _C.INPUT.MIN_SIZE_TEST = 800
-# # Maximum size of the side of the image during testing
-# _C.INPUT.MAX_SIZE_TEST = 1333
-
 # number of data loading threads
 cfg.DATALOADER.NUM_WORKERS = 2
 
@@ -1034,11 +1079,13 @@ cfg.DATALOADER.NUM_WORKERS = 2
 cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(modelLink)  # Let training initialize from model zoo
 
 # number of images per batch
-cfg.SOLVER.IMS_PER_BATCH = 2
+cfg.SOLVER.IMS_PER_BATCH = 8
+if(dataset_used == "large"):
+  cfg.SOLVER.IMS_PER_BATCH = 8
 # cfg.SOLVER.IMS_PER_BATCH = 1 ##TRIED CHANGING THIS
+# cfg.SOLVER.IMS_PER_BATCH = 4
 
 # learning rate
-# cfg.SOLVER.BASE_LR = 0.0000025  # pick a good LR
 if(parser.parse_args().learning_rate == -1):
   cfg.SOLVER.BASE_LR = 0.005  # pick a good LR
 else:
@@ -1046,10 +1093,14 @@ else:
 
 # max iterations
 if(parser.parse_args().max_iter == -1):
-  cfg.SOLVER.MAX_ITER = 10000
+  cfg.SOLVER.MAX_ITER = 10000# only if nothing else is entered as an arg
 else:
   cfg.SOLVER.MAX_ITER = parser.parse_args().max_iter
 
+# cfg.SOLVER.GAMMA = 0.1#0.1 is default
+# The iteration number to decrease learning rate by GAMMA. 
+# cfg.SOLVER.STEPS = (50000,)#30000 is default
+cfg.SOLVER.STEPS = (30000,)#30000 is default
 
 # Minibatch size PER image - number of regions of interest (ROIs)
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
