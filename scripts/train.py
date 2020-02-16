@@ -353,9 +353,11 @@ from detectron2.data import build_detection_test_loader
 class TopKAccuracy(DatasetEvaluator):
   def __init__(self, k=5):
     self.k = k
+    self.perClassDict = OrderedDict()
   def reset(self):
     self.numberCorrect = 0
     self.totalNumber   = 0
+    self.perClassDict = OrderedDict()
   # I think this is a single batch, with the inputted images and outputted results
   def process(self, inputs, outputs):
     for input,output in zip(inputs,outputs):
@@ -366,6 +368,15 @@ class TopKAccuracy(DatasetEvaluator):
       # print(input)
       classID = input["classID"]
       trueSharkID = ClassList[classID]
+
+      # Increment the total number in this class's dict entry
+      # (numCorrect,totalNum,list of incorrect filenames)
+      # Add the filename, it will be removed if this is counts as correct
+      currentFilename = input["file_name"]
+      if(trueSharkID in self.perClassDict):
+        self.perClassDict[trueSharkID] = (self.perClassDict[trueSharkID][0],self.perClassDict[trueSharkID][1]+1,self.perClassDict[trueSharkID][2].append(currentFilename))
+      else:
+        self.perClassDict[trueSharkID] = (0,1,[currentFilename])
 
       # Get the instances object from the outputs
       instances = output["instances"]
@@ -442,13 +453,19 @@ class TopKAccuracy(DatasetEvaluator):
           if(rank <= self.k):
             # We increment, and then we don't care about the rest of the k's
             self.numberCorrect = self.numberCorrect + 1
+
+            # Increment the correct of this class
+            # Remove the filename
+            self.PerClassDict[currentPredID] = (self.PerClassDict[currentPredID][0]+1,self.PerClassDict[currentPredID][1],self.PerClassDict[currentPredID][2].remove(currentFilename))
             break
 
   # Return a dictionary of the final result
   def evaluate(self):
-    # save self.count somewhere, or print it, or return it.
+    # Sort the dictionary by proportion correct
+    self.PerClassDict = OrderedDict(sorted(self.PerClassDict.items(), key=lambda t: (t[1])[0]/(t[1])[1]))
+
     accuracy = float(self.numberCorrect) / float(self.totalNumber)
-    return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k}
+    return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.PerClassDict}
 
 
 
@@ -466,10 +483,20 @@ from PIL import Image
 from torchvision.transforms.functional import _get_inverse_affine_matrix
 from detectron2.data.transforms.transform import Transform
 
+def apply_affine(affMat,x,y):
+  # print(x,y)
+  a,b,c,d,e,f = affMat
+  newX = a*x + b*y + c
+  newY = d*x + e*y + f
+  # print(a,b,c,d,e,f)
+  # print(newX)
+  # print(newY)
+  return newX,newY
+
 class RandomAffineTransform(Transform):
   def __init__(self, imageSize, angle=0, translate=(0,0), scale=1):
     center = (imageSize[0] * 0.5 + 0.5, imageSize[1] * 0.5 + 0.5)
-    shear = (np.random.uniform(-15,15),np.random.uniform(-15,15))
+    shear = (np.random.uniform(-10,10),np.random.uniform(-10,10))
 
     self.invAffMat = _get_inverse_affine_matrix(center=center, angle=angle, translate=translate, scale=scale, shear=shear)
 
@@ -479,12 +506,6 @@ class RandomAffineTransform(Transform):
     affMat = np.linalg.inv(invAffM)
     self.affMat = affMat.item(0),affMat.item(1),affMat.item(2),affMat.item(3),affMat.item(4),affMat.item(5)
 
-  def apply_affine(self,x,y):
-    a,b,c,d,e,f = self.affMat
-    newX = a*x + b*y + c
-    newY = d*x + e*y + f
-    return newX,newY
-
   def apply_image(self, image):
     PILImage = Image.fromarray(image)
     output_size = PILImage.size
@@ -492,26 +513,34 @@ class RandomAffineTransform(Transform):
     return np.array(AFFImage)
 
   def apply_coords(self, coords):
-    xmin,ymin,xmax,ymax = coords
-    p0,p1,p2,p3=(xmin,ymin),(xmax,ymax),(xmax,ymin),(xmin,ymax)
+    # NOTE: THIS JUST CONVERTS COORDS, CHANGES BOXES TO PARALELOGRAMS, WHICH MAY BREAK THINGS??
+    # print(type(coords))
+    # print("coords: ",coords)
+    # xmin,ymin,xmax,ymax = coords
+    # print(": ",coords)
+    p0,p1,p2,p3 = coords[0],coords[1],coords[2],coords[3]
+    # p0,p1,p2,p3=(xmin,ymin),(xmax,ymax),(xmax,ymin),(xmin,ymax)
+
+    # print(p0,p1,p2,p3)
 
     # Apply the affine equation
-    p0 = apply_affine(p0[0],p0[1])
-    p1 = apply_affine(p1[0],p1[1])
-    p2 = apply_affine(p2[0],p2[1])
-    p3 = apply_affine(p3[0],p3[1])  
+    p0 = apply_affine(self.affMat,p0[0],p0[1])
+    p1 = apply_affine(self.affMat,p1[0],p1[1])
+    p2 = apply_affine(self.affMat,p2[0],p2[1])
+    p3 = apply_affine(self.affMat,p3[0],p3[1])
 
     # Get the box min maxes
-    xs = [p0[0],p1[0],p2[0],p3[0]]
-    ys = [p0[1],p1[1],p2[1],p3[1]]
-    xmin = int(round(min(xs)))
-    ymin = int(round(min(ys)))
-    xmax = int(round(max(xs)))
-    ymax = int(round(max(ys)))
+    # xs = [p0[0],p1[0],p2[0],p3[0]]
+    # ys = [p0[1],p1[1],p2[1],p3[1]]
+    # # print(xs,ys)
+    # xmin = int(round(min(xs)))
+    # ymin = int(round(min(ys)))
+    # xmax = int(round(max(xs)))
+    # ymax = int(round(max(ys)))
 
     # Set the new bbox in the dictionary
-    bbox = [xmin,ymin,xmax,ymax]
-    return bbox
+    # bbox = [xmin,ymin,xmax,ymax]
+    return np.array((p0,p1,p2,p3))
   
 
 def mapper(dataset_dict):
@@ -636,9 +665,12 @@ def mapper(dataset_dict):
   transforms = transforms + tfms
 
   ## Apply random affine (actually just a shear) ##
+  # Pass in the image size
   PILImage = Image.fromarray(image)
   RandAffT = RandomAffineTransform(PILImage.size)
+  # Apply affine to image
   image = RandAffT.apply_image(image.copy())
+  # Append to transforms
   transforms = transforms + RandAffT
 
   ##### END Image Transformations #####
@@ -691,7 +723,41 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
     num_correct = str(accuracy_results["num_correct"])
     top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
     k           = str(accuracy_results["k"])
+    # Per class is an ordered dictionary of classIDs mapping to triples of the form (numCorrect,totalNum,list of incorrectly classified filenames)
+    perClass    = accuracy_results["perClass"]
 
+    perClassFiles = ""
+    perClassString = " Class  || prop | numCorrect | totalNum\n"
+    for key,value in perClass.items():
+      # 6 chars long
+      currClass   = value[0]
+
+      # 3 chars long
+      currCorrect = value[1]
+      if(currCorrect < 100):
+        currCorrect = "0"+str(currCorrect)
+        if(currCorrect < 10): 
+          currCorrect = "0"+str(currCorrect)
+      currCorrect = str(currCorrect)
+
+      # 3 chars long
+      currTotal = value[2]
+      if(currTotal < 100):
+        currTotal = "0"+str(currTotal)
+        if(currTotal < 10): 
+          currTotal = "0"+str(currTotal)
+      currTotal = str(currTotal)
+
+      # 4 chars long
+      currPropCorrect = str(round(((float(currCorrect)/float(currTotal))*100),2))
+
+      # Per class string
+      perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrect+"     |   "+currTotal+"\n")
+
+      # Class:filenames
+      listOfFilenames = value[3]
+      seperator = ', '
+      perClassFiles = perClassFiles + (currClass+": [" + seperator.join(listOfFilenames) + "]\n")
 
 
     # Create the string we're going to add to the text_file
@@ -700,6 +766,9 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
                 + "\nTotal Number: \t\t" + total_num \
                 + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
                 + "\n"
+
+    appendString = appendString + perClassString
+    appendString = appendString + perClassFiles
 
     # Append to the file
     text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
@@ -737,6 +806,42 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
     num_correct = str(accuracy_results["num_correct"])
     top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
     k           = str(accuracy_results["k"])
+    # Per class is an ordered dictionary of classIDs mapping to triples of the form (numCorrect,totalNum,list of incorrectly classified filenames)
+    perClass    = accuracy_results["perClass"]
+
+    perClassFiles = ""
+    perClassString = " Class  || prop | numCorrect | totalNum\n"
+    for key,value in perClass.items():
+      # 6 chars long
+      currClass   = value[0]
+
+      # 3 chars long
+      currCorrect = value[1]
+      if(currCorrect < 100):
+        currCorrect = "0"+str(currCorrect)
+        if(currCorrect < 10): 
+          currCorrect = "0"+str(currCorrect)
+      currCorrect = str(currCorrect)
+
+      # 3 chars long
+      currTotal = value[2]
+      if(currTotal < 100):
+        currTotal = "0"+str(currTotal)
+        if(currTotal < 10): 
+          currTotal = "0"+str(currTotal)
+      currTotal = str(currTotal)
+
+      # 4 chars long
+      currPropCorrect = str(round(((float(currCorrect)/float(currTotal))*100),2))
+
+      # Per class string
+      perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrect+"     |   "+currTotal+"\n")
+
+      # Class:filenames
+      listOfFilenames = value[3]
+      seperator = ', '
+      perClassFiles = perClassFiles + (currClass+": [" + seperator.join(listOfFilenames) + "]\n")
+
 
     # Create the string we're going to add to the text_file
     appendString = "\n________________________________________________________" \
@@ -744,6 +849,9 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
                 + "\nTotal Number: \t\t" + total_num \
                 + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
                 + "\n"
+
+    appendString = appendString + perClassString
+    appendString = appendString + perClassFiles
 
     # Append to the file
     text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
