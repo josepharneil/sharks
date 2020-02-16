@@ -137,7 +137,7 @@ elif(parser.parse_args().dataset == "l"):
   print("Dataset being used is the large dataset")
 else:
   raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
-
+transformNames = []
 
 """# Directories"""
 
@@ -710,6 +710,9 @@ def mapper(dataset_dict):
     if obj.get("iscrowd", 0) == 0
   ]
 
+  transformNames = [transforms.__name__ for x in transforms]
+  transformNames = ", ".join(transformNames)
+
   instances = utils.annotations_to_instances(annos, image.shape[:2])
   dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
@@ -1222,7 +1225,8 @@ else:
 # cfg.SOLVER.GAMMA = 0.1#0.1 is default
 # The iteration number to decrease learning rate by GAMMA. 
 # cfg.SOLVER.STEPS = (50000,)#30000 is default
-cfg.SOLVER.STEPS = (30000,)#30000 is default
+# cfg.SOLVER.STEPS = (30000,)#30000 is default
+cfg.SOLVER.STEPS = (70000,)#30000 is default
 
 # Minibatch size PER image - number of regions of interest (ROIs)
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
@@ -1292,21 +1296,26 @@ CreateOutputFolder()
 # trainer = DefaultTrainer(cfg)
 trainer = Trainer(cfg)
 
-print("Outputting to: ",cfg.OUTPUT_DIR)
-print("Model being used: ",modelLink)
-print("Model index: ",parser.parse_args().model)
-print("Learning rate: ",cfg.SOLVER.BASE_LR)
-print("Max iterations: ",cfg.SOLVER.MAX_ITER)
-print("Images per batch:",cfg.SOLVER.IMS_PER_BATCH)
-print("Number of classes: ",cfg.MODEL.RETINANET.NUM_CLASSES)
+# print("Outputting to: ",cfg.OUTPUT_DIR)
+# print("Model being used: ",modelLink)
+# print("Model index: ",parser.parse_args().model)
+# print("Learning rate: ",cfg.SOLVER.BASE_LR)
+# print("Iteration at which LR starts to decrease by "+cfg.SOLVER.GAMMA+": "+cfg.SOLVER.STEPS)
+# print("Max iterations: ",cfg.SOLVER.MAX_ITER)
+# print("Transforms used: ",transformNames)
+# print("Images per batch:",cfg.SOLVER.IMS_PER_BATCH)
+# print("Number of classes: ",cfg.MODEL.RETINANET.NUM_CLASSES)
 jbName = str(parser.parse_args().jobid)
 OutputString = "\nDate time: \t"    + dateTime \
              + "\nJobname: \t" + jbName \
+             + "\nOutputting to: \t" + str(cfg.OUTPUT_DIR) \
              + "\n________________________________________________________" \
              + "\nModel being used: \t" + modelLink \
              + "\nModel index: \t\t" + str(parser.parse_args().model) \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
+             + "\nIteration at which LR starts to decrease by "+str(cfg.SOLVER.GAMMA)+": "+str(cfg.SOLVER.STEPS) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
+             + "\nTransforms used: \t"  + transformNames \
              + "\nImages per batch: \t"     + str(cfg.SOLVER.IMS_PER_BATCH) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
              + "\n________________________________________________________" \
@@ -1315,6 +1324,9 @@ OutputString = "\nDate time: \t"    + dateTime \
 text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "w")
 text_file.write(OutputString)
 text_file.close()
+
+print(OutputString)
+
 # torch.save(OutputString,cfg.OUTPUT_DIR+"/parameters-information.txt")
 
 ############### END Training Configuration ###############
