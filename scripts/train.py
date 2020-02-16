@@ -365,7 +365,6 @@ class TopKAccuracy(DatasetEvaluator):
       self.totalNumber = self.totalNumber + 1
 
       # Get the true class ID
-      # print(input)
       classID = input["classID"]
       trueSharkID = ClassList[classID]
 
@@ -373,8 +372,15 @@ class TopKAccuracy(DatasetEvaluator):
       # (numCorrect,totalNum,list of incorrect filenames)
       # Add the filename, it will be removed if this is counts as correct
       currentFilename = input["file_name"]
-      if(trueSharkID in self.perClassDict):
-        self.perClassDict[trueSharkID] = (self.perClassDict[trueSharkID][0],self.perClassDict[trueSharkID][1]+1,self.perClassDict[trueSharkID][2].append(currentFilename))
+      # If this sharkID already exists
+      if(trueSharkID in self.perClassDict.keys()):
+        newNumCorrect = self.perClassDict[trueSharkID][0]
+        newTotalNum = self.perClassDict[trueSharkID][1]
+        if(dataset_used == "small"):
+          newList = (self.perClassDict[trueSharkID][2])
+          newList.append(currentFilename)
+
+        self.perClassDict[trueSharkID] = ( newNumCorrect, newTotalNum + 1, newList )
       else:
         self.perClassDict[trueSharkID] = (0,1,[currentFilename])
 
@@ -456,16 +462,24 @@ class TopKAccuracy(DatasetEvaluator):
 
             # Increment the correct of this class
             # Remove the filename
-            self.PerClassDict[currentPredID] = (self.PerClassDict[currentPredID][0]+1,self.PerClassDict[currentPredID][1],self.PerClassDict[currentPredID][2].remove(currentFilename))
+
+            # if(len(newList) > 1)
+            newNumCorrect = self.perClassDict[trueSharkID][0]
+            newTotalNum = self.perClassDict[trueSharkID][1]
+            newList = (self.perClassDict[trueSharkID][2])
+            if(dataset_used == "small"):
+              newList.remove(currentFilename)
+
+            self.perClassDict[currentPredID] = ( newNumCorrect+1, newTotalNum, newList )
             break
 
   # Return a dictionary of the final result
   def evaluate(self):
     # Sort the dictionary by proportion correct
-    self.PerClassDict = OrderedDict(sorted(self.PerClassDict.items(), key=lambda t: (t[1])[0]/(t[1])[1]))
+    self.perClassDict = OrderedDict(sorted(self.perClassDict.items(), key=lambda t: (t[1])[0]/(t[1])[1]))
 
     accuracy = float(self.numberCorrect) / float(self.totalNumber)
-    return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.PerClassDict}
+    return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.perClassDict}
 
 
 
