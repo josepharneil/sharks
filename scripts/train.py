@@ -68,7 +68,7 @@ from detectron2.utils.events import get_event_storage
 
 from fvcore.nn.precise_bn import get_bn_modules, update_bn_stats
 
-
+from detectron2.structures import Instances
 # from detectron2.evaluation import inference_on_dataset
 
 print("Imports done")
@@ -137,7 +137,7 @@ elif(parser.parse_args().dataset == "l"):
   print("Dataset being used is the large dataset")
 else:
   raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
-transformNames = []
+transformNames = ""
 
 """# Directories"""
 
@@ -377,9 +377,12 @@ class TopKAccuracy(DatasetEvaluator):
         newNumCorrect = self.perClassDict[trueSharkID][0]
         newTotalNum = self.perClassDict[trueSharkID][1]
         if(dataset_used == "small"):
+          # Get the current list
           newList = (self.perClassDict[trueSharkID][2])
+          # Append
           newList.append(currentFilename)
-
+        else: # when using "large"
+          newList = []
         self.perClassDict[trueSharkID] = ( newNumCorrect, newTotalNum + 1, newList )
       else:
         self.perClassDict[trueSharkID] = (0,1,[currentFilename])
@@ -710,13 +713,15 @@ def mapper(dataset_dict):
     if obj.get("iscrowd", 0) == 0
   ]
 
-  transformNames = [transforms.__name__ for x in transforms]
-  transformNames = ", ".join(transformNames)
+  # transformNames = [transforms.__name__ for x in transforms]
+  # transformNames = ", ".join(transformNames)
 
   instances = utils.annotations_to_instances(annos, image.shape[:2])
   dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
   return dataset_dict
+
+
 
 
 from fvcore.common.file_io import PathManager
@@ -751,19 +756,21 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
 
       # 3 chars long
       currCorrect = value[1]
+      currCorrectStr = str(currCorrect)
       if(currCorrect < 100):
-        currCorrect = "0"+str(currCorrect)
+        currCorrect = "0"+currCorrectStr
         if(currCorrect < 10): 
-          currCorrect = "0"+str(currCorrect)
-      currCorrect = str(currCorrect)
+          currCorrect = "0"+currCorrectStr
+      currCorrect = currCorrectStr
 
       # 3 chars long
       currTotal = value[2]
+      currTotalString = str(currTotal)
       if(currTotal < 100):
-        currTotal = "0"+str(currTotal)
+        currTotal = "0"+currTotalString
         if(currTotal < 10): 
-          currTotal = "0"+str(currTotal)
-      currTotal = str(currTotal)
+          currTotal = "0"+currTotalString
+      currTotal = currTotalString
 
       # 4 chars long
       currPropCorrect = str(round(((float(currCorrect)/float(currTotal))*100),2))
@@ -1206,7 +1213,7 @@ cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(modelLink)  # Let training init
 # number of images per batch
 cfg.SOLVER.IMS_PER_BATCH = 8
 if(dataset_used == "large"):
-  cfg.SOLVER.IMS_PER_BATCH = 8
+  cfg.SOLVER.IMS_PER_BATCH = 4
 # cfg.SOLVER.IMS_PER_BATCH = 1 ##TRIED CHANGING THIS
 # cfg.SOLVER.IMS_PER_BATCH = 4
 
@@ -1225,8 +1232,8 @@ else:
 # cfg.SOLVER.GAMMA = 0.1#0.1 is default
 # The iteration number to decrease learning rate by GAMMA. 
 # cfg.SOLVER.STEPS = (50000,)#30000 is default
-# cfg.SOLVER.STEPS = (30000,)#30000 is default
-cfg.SOLVER.STEPS = (70000,)#30000 is default
+cfg.SOLVER.STEPS = (30000,)#30000 is default
+# cfg.SOLVER.STEPS = (70000,)#30000 is default
 
 # Minibatch size PER image - number of regions of interest (ROIs)
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
@@ -1315,11 +1322,13 @@ OutputString = "\nDate time: \t"    + dateTime \
              + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
              + "\nIteration at which LR starts to decrease by "+str(cfg.SOLVER.GAMMA)+": "+str(cfg.SOLVER.STEPS) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
-             + "\nTransforms used: \t"  + transformNames \
              + "\nImages per batch: \t"     + str(cfg.SOLVER.IMS_PER_BATCH) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
              + "\n________________________________________________________" \
              + "\n"
+
+
+             #  + "\nTransforms used: \t"  + transformNames \
 
 text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt", "w")
 text_file.write(OutputString)
@@ -1338,6 +1347,8 @@ trainer.resume_or_load(resume=False)
 trainer.train()
 
 ############### END Training ###############
+
+
 
 """# Inference and Evaluation"""
 
@@ -1366,15 +1377,15 @@ except AssertionError:
   os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
   raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
 
-'''
+
 # Visualise:
 # from detectron2.utils.visualizer import ColorMode
 # dataset_dicts = getSharkTrainDicts()
 dataset_dicts = getSharkValDicts()
-for dictionary in random.sample(dataset_dicts, 12):
+for dictionary in random.sample(dataset_dicts, 15):
   im = cv2.imread(dictionary["file_name"])
   outputs = predictor(im)
-  v = Visualizer(im[:, :, ::-1],
+  vis = Visualizer(im[:, :, ::-1],
                   metadata=shark_metadata, 
                   scale=0.1,
                 #  instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels
@@ -1388,49 +1399,71 @@ for dictionary in random.sample(dataset_dicts, 12):
   sharkIDs = []
   for c in classes:
     sharkIDs.append(ClassList[c])
-  # print(sharkIDs)
   scoresRaw = instances.get("scores")
   scores = []
   for s in scoresRaw:
-    # sStr = str(s.item())
-    # sStr = sStr[:4]
     s = s.item()
     s = round(s,2)
     scores.append(s)
   out = dict(zip(sharkIDs,scores))
-  print(out)
+  # print(out)
 
   highestScoringClass = ""
   highestScore = 0.0
-  for s in out:
+  highestScoreIndex = -1
+  for i,s in enumerate(out):
     floatS = float(out[s])
     if(floatS > highestScore): 
       highestScore = floatS
       highestScoringClass = out
+      highestScoreIndex = i
 
-  if(sharkID in out):
-    if(highestScoringClass == sharkID):
-      print("Correct prediction, and highest predicted: ", sharkID, out[sharkID])
-    else:
-      print("Correct prediction: ", sharkID, out[sharkID])
+  if(highestScoreIndex != -1):
+    predboxes   = instances.get_fields()["pred_boxes"][highestScoreIndex]
+    predscores  = instances.get_fields()["scores"][highestScoreIndex]
+    predscores = torch.tensor([predscores.item()])
+    predclasses = instances.get_fields()["pred_classes"][highestScoreIndex]
+    predclasses = torch.tensor([predclasses.item()])
+    myInst = Instances((im.shape[0],im.shape[1]))
+    newFields = {"pred_boxes":predboxes,"scores":predscores,"pred_classes":predclasses}
+    myInst.set("pred_boxes",predboxes)
+    myInst.set("scores",predscores)
+    myInst.set("pred_classes",predclasses)
+
+  # if(sharkID in out):
+  #   if(highestScoringClass == sharkID):
+  #     print("Correct prediction, and highest predicted: ", sharkID, out[sharkID])
+  #   else:
+  #     print("Correct prediction: ", sharkID, out[sharkID])
+  # else:
+  #   print("No prediction: ", sharkID, "0.00")
+
+  if(highestScoreIndex != -1):
+    v = vis.draw_instance_predictions(myInst.to("cpu"))
   else:
-    print("No prediction: ", sharkID, "0.00")
+    v = vis.draw_instance_predictions(outputs["instances"].to("cpu"))
+  
+  v = vis.draw_dataset_dict(dictionary)
 
-  v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+  # v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
   img = v.get_image()[:, :, ::-1]
   # cv2_imshow(img)
   # os.makedirs(baseDirectory + "outputs/", exist_ok=True)
   # if(not os.path.isdir(cfg.OUTPUT_DIR + "/predictions"))
 
-  initialPath = os.getcwd()
   os.makedirs(cfg.OUTPUT_DIR + "/predictions", exist_ok=True)
-  os.chdir(cfg.OUTPUT_DIR + "/predictions")
-  imageFilename = dictionary["file_name"] + "_" + sharkID + ".jpg"
-  cv2.imwrite(imageFilename, img)
-  os.chdir(initialPath)
-  # filename = cfg.OUTPUT_DIR + "/predictions/" + dictionary["file_name"] + "_" + sharkID + ".jpg"
+  im = Image.fromarray(im)
+  imageFilename = dictionary["image_id"] + "_" + sharkID + ".jpg"
+  im.save(cfg.OUTPUT_DIR + "/predictions/"+imageFilename)
+  print("Saving image: ",cfg.OUTPUT_DIR + "/predictions/"+imageFilename)
 
-'''
+  # initialPath = os.getcwd()
+  # os.makedirs(cfg.OUTPUT_DIR + "/predictions", exist_ok=True)
+  # os.chdir(cfg.OUTPUT_DIR + "/predictions")
+  # imageFilename = dictionary["file_name"] + "_" + sharkID + ".jpg"
+  # cv2.imwrite(imageFilename, img)
+  # os.chdir(initialPath)
+  # filename = cfg.OUTPUT_DIR + "/predictions/" + dictionary["file_name"] + "_" + sharkID + ".jpg"
 
 
 
