@@ -758,18 +758,18 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
       currCorrect = value[1]
       currCorrectStr = str(currCorrect)
       if(currCorrect < 100):
-        currCorrect = "0"+currCorrectStr
+        currCorrectStr = "0"+currCorrectStr
         if(currCorrect < 10): 
-          currCorrect = "0"+currCorrectStr
+          currCorrectStr = "0"+currCorrectStr
       currCorrect = currCorrectStr
 
       # 3 chars long
       currTotal = value[2]
       currTotalString = str(currTotal)
       if(currTotal < 100):
-        currTotal = "0"+currTotalString
+        currTotalString = "0"+currTotalString
         if(currTotal < 10): 
-          currTotal = "0"+currTotalString
+          currTotalString = "0"+currTotalString
       currTotal = currTotalString
 
       # 4 chars long
