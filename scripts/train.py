@@ -560,7 +560,7 @@ class RandomAffineTransform(Transform):
     return np.array((p0,p1,p2,p3))
   
 
-def mapper(dataset_dict):
+def train_mapper(dataset_dict):
   # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
   # Create a copy of the dataset dict
   dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
@@ -722,6 +722,132 @@ def mapper(dataset_dict):
   return dataset_dict
 
 
+def test_mapper(dataset_dict):
+  # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
+  # Create a copy of the dataset dict
+  dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+
+
+  ##### Image Transformations #####
+  # Read in the image
+  image = utils.read_image(dataset_dict["file_name"], format="BGR")
+  # fileName = dataset_dict["file_name"]
+
+  ## Crop to bounding box ##
+  # Get the bounding box
+  bbox = ((dataset_dict["annotations"])[0])["bbox"]
+  xmin,ymin,xmax,ymax = bbox
+  w = xmax-xmin
+  h = ymax-ymin
+
+  # Nudge the crop to be slightly outside of the bounding box
+  nudgedXMin = xmin-15
+  nudgedYMin = ymin-15
+  nudgedW = w+50
+  nudgedH = h+50
+
+  # If the bounding boxes go outside of the image dimensions, fix this
+  imageHeight = image.shape[0]
+  imageWidth  = image.shape[1]
+  if(nudgedXMin < 0): nudgedXMin = 0
+  if(nudgedYMin < 0): nudgedYMin = 0
+  if(nudgedXMin+nudgedW >= imageWidth):  nudgedW = imageWidth-1
+  if(nudgedYMin+nudgedH >= imageHeight): nudgedH = imageHeight-1
+
+  # Apply the crop
+  cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
+  image = cropT.apply_image(image)
+
+  # Apply the crop to the bbox as well
+  
+  dataset_dict["height"] = nudgedH
+  dataset_dict["width"]  = nudgedW
+  
+  # Add to the list of transforms
+  transforms = T.TransformList([cropT])
+
+  ## Scale the image size ##
+  thresholdDimension = 1000
+  if(dataset_used == "large"):
+    thresholdDimension = 500
+  thresholdDimension = 800
+
+  # Downscale only at this threshold
+  if(nudgedH > thresholdDimension or nudgedW > thresholdDimension):
+    myNewH = 0
+    myNewW = 0
+    # Scale the longest dimension to 1333, the shorter to 800
+    if(nudgedH > nudgedW): 
+      myNewH = thresholdDimension
+      ratio = nudgedH/float(myNewH)
+      myNewW = nudgedW/float(ratio)
+      myNewW = int(round(myNewW))
+      # myNewW = 800
+    else:
+      # myNewH = 800
+      myNewW = thresholdDimension
+      ratio = nudgedW/float(myNewW)
+      myNewH = nudgedH/float(ratio)
+      myNewH = int(round(myNewH))
+
+    # Apply the scaling transform
+    scaleT = T.ScaleTransform(h=nudgedH,w=nudgedW,new_h=myNewW,new_w=myNewH,interp="nearest") 
+    image = scaleT.apply_image(image.copy())
+
+    # Add this to the list of transforms
+    transforms = transforms + scaleT
+
+    # Set the dimensions
+    dataset_dict["height"] = myNewH
+    dataset_dict["width"]  = myNewW
+  
+  ## Apply a random flip ##
+  # image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
+  # transforms = transforms + tfms
+
+  # Apply Other Transforms ##
+  # image, tfms = T.apply_transform_gens([T.RandomBrightness(0.4,1.6),T.RandomContrast(0.4,1.6),T.RandomSaturation(0.5,1.5),T.RandomLighting(1.2)], image)
+  # transforms = transforms + tfms
+
+  ## Apply random affine (actually just a shear) ##
+  # Pass in the image size
+  # PILImage = Image.fromarray(image)
+  # RandAffT = RandomAffineTransform(PILImage.size)
+  # Apply affine to image
+  # image = RandAffT.apply_image(image.copy())
+  # Append to transforms
+  # transforms = transforms + RandAffT
+
+  ##### END Image Transformations #####
+
+  # Keep these in for now I suppose
+  if(image.shape[0] == 0): 
+    raise ValueError("image shape[0] is 0!: ",print(image.shape),dataset_dict["file_name"])
+  if(image.shape[1] == 0): 
+    raise ValueError("image shape[1] is 0!: ",print(image.shape),dataset_dict["file_name"])
+
+  # Set the image in the dictionary
+  dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+
+
+  # Do remainder of dictionary
+  classID = ((dataset_dict["annotations"])[0])["category_id"]
+  dataset_dict["classID"] = classID
+
+  annos = \
+  [
+    utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+    for obj in dataset_dict.pop("annotations")
+    if obj.get("iscrowd", 0) == 0
+  ]
+
+  # transformNames = [transforms.__name__ for x in transforms]
+  # transformNames = ", ".join(transformNames)
+
+  instances = utils.annotations_to_instances(annos, image.shape[:2])
+  dataset_dict["instances"] = utils.filter_empty_instances(instances)
+
+  return dataset_dict
 
 
 from fvcore.common.file_io import PathManager
@@ -734,7 +860,7 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
   # Create evaluator object
   topKEvaluator = TopKAccuracy(numK)
   # Get the accuracy results
-  val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
+  val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
   accuracy_results = inference_on_dataset(trainer.model, val_loader, topKEvaluator)
 
   if(isReturn):
@@ -761,22 +887,20 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
         currCorrectStr = "0"+currCorrectStr
         if(currCorrect < 10): 
           currCorrectStr = "0"+currCorrectStr
-      currCorrect = currCorrectStr
 
       # 3 chars long
       currTotal = value[2]
-      currTotalString = str(currTotal)
+      currTotalStr = str(currTotal)
       if(currTotal < 100):
-        currTotalString = "0"+currTotalString
+        currTotalStr = "0"+currTotalStr
         if(currTotal < 10): 
-          currTotalString = "0"+currTotalString
-      currTotal = currTotalString
+          currTotalStr = "0"+currTotalStr
 
       # 4 chars long
       currPropCorrect = str(round(((float(currCorrect)/float(currTotal))*100),2))
 
       # Per class string
-      perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrect+"     |   "+currTotal+"\n")
+      perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrectStr+"     |   "+currTotalStr+"\n")
 
       # Class:filenames
       listOfFilenames = value[3]
@@ -818,7 +942,7 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
   # Create evaluator object
   topKEvaluator = TopKAccuracy(numK)
 
-  train_loader = build_detection_test_loader(cfg, "shark_train", mapper=mapper)
+  train_loader = build_detection_test_loader(cfg, "shark_train", mapper=test_mapper)
   # Get the accuracy results
   accuracy_results = inference_on_dataset(trainer.model, train_loader, topKEvaluator)
 
@@ -841,25 +965,25 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
 
       # 3 chars long
       currCorrect = value[1]
+      currCorrectStr = str(currCorrect)
       if(currCorrect < 100):
-        currCorrect = "0"+str(currCorrect)
+        currCorrectStr = "0"+currCorrectStr
         if(currCorrect < 10): 
-          currCorrect = "0"+str(currCorrect)
-      currCorrect = str(currCorrect)
+          currCorrectStr = "0"+currCorrectStr
 
       # 3 chars long
       currTotal = value[2]
+      currTotalStr = str(currTotal)
       if(currTotal < 100):
-        currTotal = "0"+str(currTotal)
+        currTotalStr = "0"+currTotalStr
         if(currTotal < 10): 
-          currTotal = "0"+str(currTotal)
-      currTotal = str(currTotal)
+          currTotalStr = "0"+currTotalStr
 
       # 4 chars long
       currPropCorrect = str(round(((float(currCorrect)/float(currTotal))*100),2))
 
       # Per class string
-      perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrect+"     |   "+currTotal+"\n")
+      perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrectStr+"     |   "+currTotalStr+"\n")
 
       # Class:filenames
       listOfFilenames = value[3]
@@ -901,7 +1025,7 @@ class TensorboardAndLogWriter(EventWriter):
   Write all scalars to a tensorboard file.
   """
 
-  def __init__(self, max_iter: int, log_dir: str, window_size: int = 20, **kwargs):
+  def __init__(self, max_iter: int, log_dir: str, window_size: int = 20 ,**kwargs):
     """
     Args:
         log_dir (str): the directory to save the output events
@@ -911,6 +1035,7 @@ class TensorboardAndLogWriter(EventWriter):
     """
     self._window_size = window_size
     from torch.utils.tensorboard import SummaryWriter
+    # self._file_handle = PathManager.open(json_file, "a")
 
     self._writer = SummaryWriter(log_dir, **kwargs)
 
@@ -944,6 +1069,15 @@ class TensorboardAndLogWriter(EventWriter):
 
     # self._writer.add_scalar("accuracy_train", accuracy_train, storage.iter)
     # self._writer.add_scalar("accuracy_test", accuracy_test, storage.iter)
+
+    # to_save = {"iteration": storage.iter}
+    # to_save.update(storage.latest_with_smoothing_hint(self._window_size))
+    # self._file_handle.write(json.dumps(to_save, sort_keys=True) + "\n")
+    # self._file_handle.flush()
+    # try:
+    #     os.fsync(self._file_handle.fileno())
+    # except AttributeError:
+    #     pass
 
 
 
@@ -1007,6 +1141,7 @@ class TensorboardAndLogWriter(EventWriter):
 
 
   def close(self):
+    # self._file_handle.close()
     if hasattr(self, "_writer"):  # doesn't exist when the code fails at import
       self._writer.close()
 
@@ -1017,6 +1152,56 @@ from detectron2.engine import DefaultTrainer
 import logging
 from detectron2.utils import comm
 from detectron2.engine import hooks
+from detectron2.config import CfgNode
+from typing import Any, Dict, List, Set
+
+def my_build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Optimizer:
+    """
+    Build an optimizer from config.
+    """
+    norm_module_types = (
+        torch.nn.BatchNorm1d,
+        torch.nn.BatchNorm2d,
+        torch.nn.BatchNorm3d,
+        torch.nn.SyncBatchNorm,
+        # NaiveSyncBatchNorm inherits from BatchNorm2d
+        torch.nn.GroupNorm,
+        torch.nn.InstanceNorm1d,
+        torch.nn.InstanceNorm2d,
+        torch.nn.InstanceNorm3d,
+        torch.nn.LayerNorm,
+        torch.nn.LocalResponseNorm,
+    )
+    params: List[Dict[str, Any]] = []
+    memo: Set[torch.nn.parameter.Parameter] = set()
+    for module in model.modules():
+        for key, value in module.named_parameters(recurse=False):
+            if not value.requires_grad:
+                continue
+            # Avoid duplicating parameters
+            if value in memo:
+                continue
+            memo.add(value)
+            lr = cfg.SOLVER.BASE_LR
+            weight_decay = cfg.SOLVER.WEIGHT_DECAY
+            if isinstance(module, norm_module_types):
+                weight_decay = cfg.SOLVER.WEIGHT_DECAY_NORM
+            elif key == "bias":
+                # NOTE: unlike Detectron v1, we now default BIAS_LR_FACTOR to 1.0
+                # and WEIGHT_DECAY_BIAS to WEIGHT_DECAY so that bias optimizer
+                # hyperparameters are by default exactly the same as for regular
+                # weights.
+                lr = cfg.SOLVER.BASE_LR * cfg.SOLVER.BIAS_LR_FACTOR
+                weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
+            params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+
+    optimizer = torch.optim.SGD(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    # Adam(params, lr, betas, eps, weight_decay, amsgrad)
+    # default momentum: 0.9
+    # optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    # optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR)
+    # print("Using ADAM optimizer - note that the momentum is the default in ADAM, and is not associated with the CFG")
+    return optimizer
 
 class Trainer(DefaultTrainer):
   # @classmethod
@@ -1032,11 +1217,11 @@ class Trainer(DefaultTrainer):
 
   @classmethod
   def build_test_loader(cls, cfg, dataset_name):
-    return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
+    return build_detection_test_loader(cfg, dataset_name, mapper=test_mapper)
 
   @classmethod
   def build_train_loader(cls, cfg):
-    return build_detection_train_loader(cfg, mapper=mapper)
+    return build_detection_train_loader(cfg, mapper=train_mapper)
 
   # @classmethod
   def build_writers(self):
@@ -1070,6 +1255,7 @@ class Trainer(DefaultTrainer):
         # TensorboardXWriter(self.cfg.OUTPUT_DIR),
         # MyTensorboardXWriter(self.cfg.OUTPUT_DIR),
         TensorboardAndLogWriter(self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard"),
+        # TensorboardAndLogWriter(self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard",os.path.join(self.cfg.OUTPUT_DIR))
     ]
 
   # @classmethod
@@ -1134,6 +1320,19 @@ class Trainer(DefaultTrainer):
       ret.append(hooks.PeriodicWriter(self.build_writers(),period=step))
       # ret.append(hooks.PeriodicWriter(self.build_writers(),period=(self.max_iter-1)))
     return ret
+
+  @classmethod
+  def build_optimizer(cls, cfg, model):
+    """
+    Returns:
+        torch.optim.Optimizer:
+
+    It now calls :func:`detectron2.solver.build_optimizer`.
+    Overwrite it if you'd like a different optimizer.
+    """
+    return my_build_optimizer(cfg, model)
+
+
 
   # @classmethod
   # def build_model(cls, cfg):
@@ -1239,6 +1438,14 @@ cfg.SOLVER.STEPS = (30000,)#30000 is default
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
 # cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
 
+# cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[32, 64, 128, 256, 800]]#default doesn't have 800, has 512
+
+
+# _C.SOLVER.CHECKPOINT_PERIOD = 5000 #CONSIDER CHANGING THIS
+numberOfCheckpoints = 20
+checkpointPeriod = int(round(cfg.SOLVER.MAX_ITER/numberOfCheckpoints))
+cfg.SOLVER.CHECKPOINT_PERIOD = checkpointPeriod
+
 # Number of classes
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
 cfg.MODEL.RETINANET.NUM_CLASSES = len(SharkClassDictionary)  # only has one class (ballon)
@@ -1302,6 +1509,12 @@ CreateOutputFolder()
 ## This simplifies the standard model training workflow, so you don't have to write boilerplate code
 # trainer = DefaultTrainer(cfg)
 trainer = Trainer(cfg)
+
+
+###### save the cfg ######
+torch.save(cfg,cfg.OUTPUT_DIR +"/cfg.yaml")
+
+
 
 # print("Outputting to: ",cfg.OUTPUT_DIR)
 # print("Model being used: ",modelLink)
@@ -1438,24 +1651,26 @@ for dictionary in random.sample(dataset_dicts, 15):
   # else:
   #   print("No prediction: ", sharkID, "0.00")
 
+  # If there is a highest prediction, then draw it
   if(highestScoreIndex != -1):
     v = vis.draw_instance_predictions(myInst.to("cpu"))
   else:
     v = vis.draw_instance_predictions(outputs["instances"].to("cpu"))
   
+  # Draw the groundtruth
   v = vis.draw_dataset_dict(dictionary)
 
-  # v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+  # Get the image
   img = v.get_image()[:, :, ::-1]
-  # cv2_imshow(img)
-  # os.makedirs(baseDirectory + "outputs/", exist_ok=True)
-  # if(not os.path.isdir(cfg.OUTPUT_DIR + "/predictions"))
 
+  # Create the predictions folder
   os.makedirs(cfg.OUTPUT_DIR + "/predictions", exist_ok=True)
-  im = Image.fromarray(im)
+  # Set up filename
   imageFilename = dictionary["image_id"] + "_" + sharkID + ".jpg"
-  im.save(cfg.OUTPUT_DIR + "/predictions/"+imageFilename)
-  print("Saving image: ",cfg.OUTPUT_DIR + "/predictions/"+imageFilename)
+  imageFilename = cfg.OUTPUT_DIR + "/predictions/" + imageFilename
+  # Write the image
+  cv2.imwrite(imageFilename,img)
+  print("Saving image: ",imageFilename)
 
   # initialPath = os.getcwd()
   # os.makedirs(cfg.OUTPUT_DIR + "/predictions", exist_ok=True)
@@ -1478,7 +1693,7 @@ from detectron2.data import build_detection_test_loader
 evaluationDict = OrderedDict()
 
 # The loader for the test data (applies various transformations if we so choose)
-val_loader = build_detection_test_loader(cfg, "shark_val", mapper=mapper)
+val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
 
 def COCOEvaluation():
   # Get the coco evaluator
