@@ -856,11 +856,23 @@ from PIL import Image
 ############### END Dataset Mapper ###############
 
 def EvaluateTestTopKAccuracy(numK,isReturn=False):
-  # with torch.no_grad():
+  return EvaluateTopKAccuracy("test",numK,isReturn=False)
+
+def EvaluateTrainTopKAccuracy(numK,isReturn=False):
+  return EvaluateTopKAccuracy("train",numK,isReturn=False)
+
+def EvaluateTopKAccuracy(testOrTrain,numK,isReturn=False):
+  if(testOrTrain == "test"):
+    val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
+  elif(testOrTrain == "train"):
+    val_loader = build_detection_test_loader(cfg, "shark_train", mapper=test_mapper)
+  else:
+    raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!")
+
   # Create evaluator object
   topKEvaluator = TopKAccuracy(numK)
   # Get the accuracy results
-  val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
+  # val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
   accuracy_results = inference_on_dataset(trainer.model, val_loader, topKEvaluator)
 
   if(isReturn):
@@ -871,17 +883,19 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
     num_correct = str(accuracy_results["num_correct"])
     top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
     k           = str(accuracy_results["k"])
-    # Per class is an ordered dictionary of classIDs mapping to triples of the form (numCorrect,totalNum,list of incorrectly classified filenames)
+    # Per class is an ordered dictionary of classIDs mapping to triples of the form 
+    # (numCorrect,totalNum,list of incorrectly classified filenames)
     perClass    = accuracy_results["perClass"]
 
     perClassFiles = ""
     perClassString = " Class  || prop | numCorrect | totalNum\n"
     for key,value in perClass.items():
       # 6 chars long
-      currClass   = value[0]
+      # currClass   = value[0]
+      currClass = key
 
       # 3 chars long
-      currCorrect = value[1]
+      currCorrect = value[0]
       currCorrectStr = str(currCorrect)
       if(currCorrect < 100):
         currCorrectStr = "0"+currCorrectStr
@@ -889,7 +903,7 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
           currCorrectStr = "0"+currCorrectStr
 
       # 3 chars long
-      currTotal = value[2]
+      currTotal = value[1]
       currTotalStr = str(currTotal)
       if(currTotal < 100):
         currTotalStr = "0"+currTotalStr
@@ -903,7 +917,7 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
       perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrectStr+"     |   "+currTotalStr+"\n")
 
       # Class:filenames
-      listOfFilenames = value[3]
+      listOfFilenames = value[2]
       seperator = ', '
       perClassFiles = perClassFiles + (currClass+": [" + seperator.join(listOfFilenames) + "]\n")
 
@@ -937,6 +951,11 @@ def EvaluateTestTopKAccuracy(numK,isReturn=False):
     return result
 
 
+
+# def EvaluateTestTopKAccuracy(numK,isReturn=False):
+  
+
+'''
 def EvaluateTrainTopKAccuracy(numK, isReturn=False):
   # with torch.no_grad():
   # Create evaluator object
@@ -1018,7 +1037,7 @@ def EvaluateTrainTopKAccuracy(numK, isReturn=False):
     # result["total_num"]   = accuracy_results["total_num"]
     # result["k"]           = accuracy_results["k"]
     # return result
-
+'''
 
 class TensorboardAndLogWriter(EventWriter):
   """
@@ -1195,12 +1214,12 @@ def my_build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Opti
                 weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
             params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-    optimizer = torch.optim.SGD(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    # optimizer = torch.optim.SGD(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
     # Adam(params, lr, betas, eps, weight_decay, amsgrad)
     # default momentum: 0.9
     # optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
-    # optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR)
-    # print("Using ADAM optimizer - note that the momentum is the default in ADAM, and is not associated with the CFG")
+    optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR)
+    print("Using ADAM optimizer - note that the momentum is the default in ADAM, and is not associated with the CFG")
     return optimizer
 
 class Trainer(DefaultTrainer):
@@ -1568,8 +1587,8 @@ trainer.train()
 # Inference:
 cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
 # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7   # set the testing threshold for this model
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set the testing threshold for this model
-cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.7
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.25  # set the testing threshold for this model
+cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.25
 cfg.DATASETS.TEST = ("shark_val", )
 # cfg.DATASETS.TEST = ("shark_train", )
 # Create a simple end-to-end predictor with the given config
@@ -1600,7 +1619,7 @@ for dictionary in random.sample(dataset_dicts, 15):
   outputs = predictor(im)
   vis = Visualizer(im[:, :, ::-1],
                   metadata=shark_metadata, 
-                  scale=0.1,
+                  # scale=0.1,
                 #  instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels
   )
 
