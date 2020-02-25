@@ -723,6 +723,11 @@ def train_mapper(dataset_dict):
 
 
 def test_mapper(dataset_dict):
+
+  ## temp ##
+  return train_mapper(dataset_dict)
+  ########
+   
   # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
   # Create a copy of the dataset dict
   dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
@@ -885,13 +890,13 @@ def EvaluateTopKAccuracy(testOrTrain,numK,isReturn=False):
     k           = str(accuracy_results["k"])
     # Per class is an ordered dictionary of classIDs mapping to triples of the form 
     # (numCorrect,totalNum,list of incorrectly classified filenames)
+    # OD( classID: (numCorr,totNum,list),...  )
     perClass    = accuracy_results["perClass"]
 
     perClassFiles = ""
     perClassString = " Class  || prop | numCorrect | totalNum\n"
     for key,value in perClass.items():
       # 6 chars long
-      # currClass   = value[0]
       currClass = key
 
       # 3 chars long
@@ -1458,6 +1463,7 @@ cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 #lower is faster, default: 512
 # cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
 
 # cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[32, 64, 128, 256, 800]]#default doesn't have 800, has 512
+# cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[32, 128, 256, 800]]#default doesn't have 800, has 512
 
 
 # _C.SOLVER.CHECKPOINT_PERIOD = 5000 #CONSIDER CHANGING THIS
@@ -1746,7 +1752,10 @@ def COCOEvaluation():
     if(not math.isnan(copycocoB[APClass])):
       averageScore = averageScore + copycocoB[APClass]
 
-  averageScore = float(averageScore) / float(numAPClasses)
+  if(numAPClasses != 0):
+    averageScore = float(averageScore) / float(numAPClasses)
+  else:
+    averageScore = float('nan')
   # averageScore = str(averageScore)
 
   # print(cocoBbox["AP"])
