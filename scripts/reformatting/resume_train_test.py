@@ -39,7 +39,6 @@ from detectron2.structures import Instances
 
 import evaluate
 import mappers
-import settings
 import config
 import getters
 import writers
@@ -101,13 +100,13 @@ parser.add_argument(
   type=int,
   help="Whether to track accuracy or not during training (this is *very* intensive)"
 )
-parser.add_argument(
-  "-ch",
-  "--checkpoint",
-  default=None,
-  type=str,
-  help="Absolute path of the directory to get the checkpoint to resume from"
-)
+# parser.add_argument(
+#   "-r",
+#   "--resume",
+#   default=None,
+#   type=str,
+#   help="Absolute path of the directory to get the checkpoint to resume from"
+# )
 
 
 dataset_used = ""
@@ -145,6 +144,11 @@ if(dataset_used == "large"):
   sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/data.json"
   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
+
+
+actualJobID = parser.parse_args().jobid
+resumeID = 3380515
+# print("parser.parse_args().jobid:",parser.parse_args().jobid)
 
 
 #-----------------------------------------------------#
@@ -200,7 +204,8 @@ cfg = config.CreateCfg(parser=parser.parse_args(),
                 numClasses=len(SharkClassDictionary),
                 baseOutputDir=baseOutputDirectory,
                 modelLink=modelLink,
-                modelOutputFolderName=modelOutputFolderName)
+                modelOutputFolderName=modelOutputFolderName,
+                jobIDOverride=resumeID)
 
 #-----------------------------------------------------#
 #              Create the Trainer
@@ -245,12 +250,18 @@ PrintAndWriteToParams(OutputString)
 #-----------------------------------------------------#
 # If true, and the last checkpoint exists, resume from it
 # If false, load a model specified by the config
-temp = cfg.OUTPUT_DIR
+# temp = cfg.OUTPUT_DIR
 # cfg.OUTPUT_DIR = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515"#parser.parse_args().checkpoint
-cfg.OUTPUT_DIR = parser.parse_args().checkpoint
+# cfg.OUTPUT_DIR = parser.parse_args().checkpoint
+# trainer.resume_or_load(resume=True)
+# cfg.OUTPUT_DIR = temp
+# cfg.MODEL.WEIGHTS = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515/model_0394999.pth"
+# trainer.start_iter = 394999+1
 trainer.resume_or_load(resume=True)
-cfg.OUTPUT_DIR = temp
+print(trainer.checkpointer.save_dir)
 trainer.train()
+
+# manually load model weights 
 
 
 #-----------------------------------------------------#
@@ -341,7 +352,8 @@ evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,1
 #-----------------------------------------------------#
 #             FINALLY: Move the Slurm File
 #-----------------------------------------------------#
-jobName = str(parser.parse_args().jobid)
+# jobName = str(parser.parse_args().jobid)
+jobName = str(actualJobID)
 # Create the file name
 filename = "slurm-"+jobName+".out"
 print("Moving ",filename)

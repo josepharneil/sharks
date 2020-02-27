@@ -198,6 +198,8 @@ def train_mapper(dataset_dict,dataset_used):
   instances = utils.annotations_to_instances(annos, image.shape[:2])
   dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
+  dataset_dict["transforms"] = transforms
+
   return dataset_dict
 
 def test_mapper(dataset_dict,dataset_used):

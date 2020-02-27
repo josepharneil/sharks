@@ -1,7 +1,7 @@
 import torch
 from collections import OrderedDict
 
-from detectron2.evaluation import COCOEvaluator#, inference_on_dataset
+from detectron2.evaluation import COCOEvaluator
 from detectron2.evaluation import DatasetEvaluator
 from detectron2.data import build_detection_test_loader
 
@@ -21,11 +21,14 @@ import mappers
 #-----------------------------------------------------#
 
 class TopKAccuracy(DatasetEvaluator):
-  def __init__(self, getter, dataset_used, k=5):
+  def __init__(self, getter, dataset_used, cfg=None, k=5, output_images=False):
     self.k = k
     self.perClassDict = OrderedDict()
     self.ClassList = getter.getClassList()
     self.dataset_used = dataset_used
+    self.output_images = output_images
+    self.bboxSaveDict = {}
+    self.cfg = cfg
 
   def reset(self):
     self.numberCorrect = 0
@@ -74,16 +77,21 @@ class TopKAccuracy(DatasetEvaluator):
       scores = instances.get("scores")
       scores = scores.cpu()
       scores = scores.numpy()
+
+      bboxes = instances.get("pred_boxes")
+      bboxes = [box.cpu().numpy() for box in bboxes]
       
       # If there are no predicted scores for his input, skip iteration of the loop
       if(len(scores) == 0): continue
 
       # Zip up the predicted shark IDs and scores into a dictionary
-      sharkIDScoreDict = dict(zip(predictedSharkIDs,scores))
+      # sharkIDScoreDict = dict(zip(predictedSharkIDs,scores))
+      sharkIDScoreList = list(zip(predictedSharkIDs,scores,bboxes))
       # Sort it into a list of descending order, in order of the value (the score)
-      sortedSharkIDScoreList = sorted(sharkIDScoreDict.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
+      # sortedSharkIDScoreList = sorted(sharkIDScoreDict.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
+      sortedSharkIDScoreList = sorted(sharkIDScoreList, key = lambda kv:(kv[1], kv[0]), reverse=True)
 
-      # sortedSharkIDScoreList is a list of tuples: [(sharkID,score),...]
+      # sortedSharkIDScoreList is a list of tuples: [(sharkID,score,bbox),...]
       # sortedSharkIDScoreList[0] gives you the highest scoring tuple
       # (sortedSharkIDScoreList[0])[0] gives you the sharkID for the 0th tuple
 
@@ -98,6 +106,19 @@ class TopKAccuracy(DatasetEvaluator):
         # Get the shark ID
         currentPredID = currentTuple[0]
         currentScore = currentTuple[1]
+        # currentBbox = currentTuple[2]
+        if(self.output_images):
+          # Only save the highest predicted
+          if(i == 0):
+            try: 
+              transforms = output["transforms"]
+            except:
+              transforms = "broke"
+              # print(output.keys())
+
+            saveTuple = (currentTuple[0],currentTuple[1],currentTuple[2],transforms)
+            self.bboxSaveDict[currentFilename] = saveTuple
+
         # Append this to the top K predictions
         # topKPredictedIDs.append(currentPredID)
 
@@ -151,6 +172,10 @@ class TopKAccuracy(DatasetEvaluator):
 
   # Return a dictionary of the final result
   def evaluate(self):
+
+    if(self.output_images):
+      torch.save(self.bboxSaveDict, self.cfg.OUTPUT_DIR+"/bboxSaveDict.py")
+
     # Sort the dictionary by proportion correct
     self.perClassDict = OrderedDict(sorted(self.perClassDict.items(), key=lambda t: (t[1])[0]/(t[1])[1]))
 
@@ -299,7 +324,7 @@ class MyEvaluator():
       raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!"+self.dataset_used)
 
     # Create evaluator object
-    topKEvaluator = TopKAccuracy(self.getter,self.dataset_used,numK)
+    topKEvaluator = TopKAccuracy(getter=self.getter,dataset_used=self.dataset_used,k=numK)
     # Get the accuracy results
     # val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
     # Note to self: self.model used to be trainer.model

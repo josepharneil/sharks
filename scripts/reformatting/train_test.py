@@ -39,7 +39,6 @@ from detectron2.structures import Instances
 
 import evaluate
 import mappers
-import settings
 import config
 import getters
 import writers
@@ -101,6 +100,14 @@ parser.add_argument(
   type=int,
   help="Whether to track accuracy or not during training (this is *very* intensive)"
 )
+parser.add_argument(
+  "-r",
+  "--resume",
+  default=-1,
+  type=int,
+  help="JobID to resume from"
+)
+
 
 dataset_used = ""
 if(parser.parse_args().dataset == "s"):
@@ -138,6 +145,16 @@ if(dataset_used == "large"):
   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
 
+
+#-----------------------------------------------------#
+#                  Handle ResumeID
+#-----------------------------------------------------#
+actualJobID = parser.parse_args().jobid
+resumeID = parser.parse_args().resume #3380515
+if(resumeID == -1):
+  print("Training new model: ",actualJobID)
+else:
+  print("Resuming training from: ",resumeID)
 
 #-----------------------------------------------------#
 #                   Get Dicts
@@ -192,7 +209,9 @@ cfg = config.CreateCfg(parser=parser.parse_args(),
                 numClasses=len(SharkClassDictionary),
                 baseOutputDir=baseOutputDirectory,
                 modelLink=modelLink,
-                modelOutputFolderName=modelOutputFolderName)
+                modelOutputFolderName=modelOutputFolderName,
+                jobIDOverride=resumeID)
+                # if no resumeID is entered/parsed, it will be -1 and do nothing
 
 #-----------------------------------------------------#
 #              Create the Trainer
@@ -329,7 +348,8 @@ evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,1
 #-----------------------------------------------------#
 #             FINALLY: Move the Slurm File
 #-----------------------------------------------------#
-jobName = str(parser.parse_args().jobid)
+# jobName = str(parser.parse_args().jobid)
+jobName = str(actualJobID)
 # Create the file name
 filename = "slurm-"+jobName+".out"
 print("Moving ",filename)

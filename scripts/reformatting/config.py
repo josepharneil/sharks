@@ -13,7 +13,7 @@ import os
 
 # modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
 
-def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutputFolderName):
+def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutputFolderName,jobIDOverride=-1):
 
   # default configuration
   cfg = get_cfg()
@@ -78,14 +78,17 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg.MODEL.ROI_HEADS.NUM_CLASSES = numClasses  # only has one class (ballon)
   cfg.MODEL.RETINANET.NUM_CLASSES = numClasses  # only has one class (ballon)
 
-  def CreateOutputFolder():
+  # def CreateOutputFolder():
+  if(jobIDOverride == -1):
     jbName = str(parser.jobid)
-    foldername = "output_"+jbName
-    path = baseOutputDir + modelOutputFolderName + "/" + foldername
-    os.makedirs(path, exist_ok=True)
-    cfg.OUTPUT_DIR = path
+  else:
+    jbName = str(jobIDOverride)
+  foldername = "output_"+jbName
+  path = baseOutputDir + modelOutputFolderName + "/" + foldername
+  os.makedirs(path, exist_ok=True)
+  cfg.OUTPUT_DIR = path
 
-  CreateOutputFolder()
+  # CreateOutputFolder()
 
   # Used in evaluation
   # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")

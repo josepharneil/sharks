@@ -134,7 +134,10 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
 
       It is not implemented by default.
       """
-      return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, k=1)
+      if(dataset_name == "shark_val"):
+        return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, cfg=cfg, k=1, output_images=True)
+      else:
+        return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, k=1)
       
 
       raise NotImplementedError(
@@ -172,7 +175,7 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
           # implicitly assume that evaluators can be created before data_loader.
           if evaluators is not None:
               evaluator = evaluators[idx]
-          else:
+          else:# If the passed in arg evaluators is NONE
               try:
                   evaluator = cls.build_evaluator(cfg, dataset_name, getter, dataset_used)
               except NotImplementedError:
