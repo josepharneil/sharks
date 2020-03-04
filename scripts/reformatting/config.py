@@ -71,7 +71,7 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   # _C.SOLVER.CHECKPOINT_PERIOD = 5000 #CONSIDER CHANGING THIS
   numberOfCheckpoints = 20
   checkpointPeriod = int(round(cfg.SOLVER.MAX_ITER/numberOfCheckpoints))
-  cfg.SOLVER.CHECKPOINT_PERIOD = checkpointPeriod
+  # cfg.SOLVER.CHECKPOINT_PERIOD = checkpointPeriod
   cfg.TEST.EVAL_PERIOD = checkpointPeriod
 
   # Number of classes

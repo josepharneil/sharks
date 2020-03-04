@@ -345,8 +345,8 @@ PrintAndWriteToParams(appendString,"a+")
 #-----------------------------------------------------#
 #                Visualise Predictions
 #-----------------------------------------------------#
-test_dataset_dicts = myDictGetters.getSharkTrainDicts()
-evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,15)
+# test_dataset_dicts = myDictGetters.getSharkTrainDicts()
+# evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,15)
 
 
 #-----------------------------------------------------#

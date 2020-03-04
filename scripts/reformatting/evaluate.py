@@ -174,7 +174,7 @@ class TopKAccuracy(DatasetEvaluator):
   def evaluate(self):
 
     if(self.output_images):
-      torch.save(self.bboxSaveDict, self.cfg.OUTPUT_DIR+"/bboxSaveDict.py")
+      torch.save(self.bboxSaveDict, self.cfg.OUTPUT_DIR+"/bboxSaveDict.pt")
 
     # Sort the dictionary by proportion correct
     self.perClassDict = OrderedDict(sorted(self.perClassDict.items(), key=lambda t: (t[1])[0]/(t[1])[1]))
@@ -345,7 +345,7 @@ class MyEvaluator():
       perClass    = accuracy_results["perClass"]
 
       perClassFiles = ""
-      perClassString = " Class  || prop | numCorrect | totalNum\n"
+      perClassString = " Class  || prop  | numCorrect | totalNum\n"
       for key,value in perClass.items():
         # 6 chars long
         currClass = key
@@ -368,6 +368,9 @@ class MyEvaluator():
 
         # 4 chars long
         currPropCorrect = str(round(((float(currCorrect)/float(currTotal))*100),2))
+        # If the string is of form 12.3, make it 12.30
+        if(len(currPropCorrect) == 4):
+          currPropCorrect = currPropCorrect + '0'
 
         # Per class string
         perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrectStr+"     |   "+currTotalStr+"\n")
@@ -412,20 +415,21 @@ class MyEvaluator():
   def EvaluateTrainTopKAccuracy(self,numK,isReturn=False):
     return self.EvaluateTopKAccuracy("train",numK,isReturn=False)
 
-  def EvaluateTestCOCO(self):
+  def EvaluateCOCO(self,dataset_to_eval):
     # The loader for the test data (applies various transformations if we so choose)
     # val_loader = build_detection_test_loader(self.cfg, "shark_val", mapper=test_mapper)
     # Set up the val_loader with the appropriate mapper
     if(self.dataset_used == "small"):
-      val_loader = build_detection_test_loader(self.cfg, "shark_val", mapper=mappers.small_test_mapper)
+      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.small_test_mapper)
     elif(self.dataset_used == "large"):
-      val_loader = build_detection_test_loader(self.cfg, "shark_val", mapper=mappers.large_test_mapper)
+      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.large_test_mapper)
     else:
       raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!",self.dataset_used)
 
-
+    print("Evaluating using COCO Metrics: ", dataset_to_eval)
+  
     # Get the coco evaluator
-    cocoEvaluator = COCOEvaluator("shark_val", self.cfg, False, output_dir=self.cfg.OUTPUT_DIR+"/")
+    cocoEvaluator = COCOEvaluator(dataset_to_eval, self.cfg, False, output_dir=self.cfg.OUTPUT_DIR+"/")
 
     # Run the model on the data_loader and evaluate the metrics evaluator
     # Also benchmarks the inference speed of model.forward accurately
@@ -466,6 +470,7 @@ class MyEvaluator():
 
     # Create the string we're going to add to the text_file
     appendString = "\n________________________________________________________" \
+                  + "\nEvaluating: "+ dataset_to_eval \
                   + "\nAverage Precision COCO: \t" + str(mAP) \
                   + "\nAverage Precision 50  : \t" + str(mAP50) \
                   + "\nAverage Precision 75  : \t" + str(mAP75) \
@@ -490,6 +495,13 @@ class MyEvaluator():
     resultDict["ClassAveAP"] = averageScore
     resultDict["PerClassAP"] = copycocoB
     return resultDict
+
+
+  def EvaluateTestCOCO(self):
+    return self.EvaluateCOCO("shark_val")
+
+  def EvaluateTrainCOCO(self):
+    return self.EvaluateCOCO("shark_train")
 
 
 

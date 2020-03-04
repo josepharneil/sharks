@@ -206,6 +206,13 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
                                     "accuracy":    float(topkacc["accuracy"])    , 
                                     "k":           float(topkacc["k"])           }#,
                                     #"perClass":    float(topkacc["perClass"])      }
+
+          AccToWrite = str(round((float(topkacc["accuracy"])*100),2))
+          StrToWrite = dataset_name + ": " + AccToWrite
+          text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt","a+")
+          text_file.write(StrToWrite)
+          text_file.close()
+
           results[dataset_name] = results_i
           if comm.is_main_process():
               assert isinstance(

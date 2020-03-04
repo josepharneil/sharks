@@ -305,8 +305,11 @@ evaluationDict["params"] = parameterDict
 
 # Do coco evaluation
 myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters)
-cocoResults = myEvaluator.EvaluateTestCOCO()
-evaluationDict["coco"] = cocoResults
+cocoValResults = myEvaluator.EvaluateTestCOCO()
+evaluationDict["coco_val"] = cocoValResults
+
+cocoTrainResults = myEvaluator.EvaluateTrainCOCO()
+evaluationDict["coco_train"] = cocoTrainResults
 
 
 # Do Top K Test Accuracy
@@ -341,8 +344,8 @@ PrintAndWriteToParams(appendString,"a+")
 #-----------------------------------------------------#
 #                Visualise Predictions
 #-----------------------------------------------------#
-test_dataset_dicts = myDictGetters.getSharkTrainDicts()
-evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,15)
+# test_dataset_dicts = myDictGetters.getSharkTrainDicts()
+# evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,15)
 
 
 #-----------------------------------------------------#
