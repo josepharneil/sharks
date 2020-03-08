@@ -39,7 +39,6 @@ from detectron2.structures import Instances
 
 import evaluate
 import mappers
-import settings
 import config
 import getters
 import writers
@@ -102,18 +101,11 @@ parser.add_argument(
   help="Whether to track accuracy or not during training (this is *very* intensive)"
 )
 parser.add_argument(
-  "-cfg",
-  "--cfg",
-  default=None,
-  type=str,
-  help="Absolute path for the config file"
-)
-parser.add_argument(
-  "-mpth",
-  "--model_path",
-  default=None,
-  type=str,
-  help="Absolute path for the model file"
+  "-r",
+  "--resume",
+  default=-1,
+  type=int,
+  help="JobID to resume from"
 )
 
 
@@ -155,6 +147,16 @@ if(dataset_used == "large"):
 
 
 #-----------------------------------------------------#
+#                  Handle ResumeID
+#-----------------------------------------------------#
+actualJobID = parser.parse_args().jobid
+resumeID = parser.parse_args().resume #3380515
+if(resumeID == -1):
+  print("Training new model: ",actualJobID)
+else:
+  print("Resuming training from: ",resumeID)
+
+#-----------------------------------------------------#
 #                   Get Dicts
 #-----------------------------------------------------#
 
@@ -178,9 +180,12 @@ shark_metadata = MetadataCatalog.get("shark_train")
 
 
 
+
 #-----------------------------------------------------#
-#                 Create the config
+#                Load the Config
 #-----------------------------------------------------#
+directory_to_load_from = "???"
+
 modelLink = ""
 modelOutputFolderName = ""
 if(parser.parse_args().model == 0):
@@ -202,115 +207,111 @@ else:
   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
   modelOutputFolderName = "retinanet_R_50_FPN_1x"
 
-# cfg = config.CreateCfg(parser=parser.parse_args(),
-#                 dataset_used=dataset_used,
-#                 numClasses=len(SharkClassDictionary),
-#                 baseOutputDir=baseOutputDirectory,
-#                 modelLink=modelLink,
-#                 modelOutputFolderName=modelOutputFolderName)
-try:
-  cfg = torch.load(parser.parse_args().cfg)
-except:
-  raise ValueError("Missing or incorrect config path: must be parsed with --cfg")
+from detectron2.modeling import build_model
+from detectron2.checkpoint import DetectionCheckpointer
 
-# Load the final model outputted in training
-cfg.MODEL.WEIGHTS = parser.parse_args().model_path
 
+# Load the CFG file
+loadedCfg = torch.load(directory_to_load_from+"/cfg.yaml")
+# Load in the weights
+loadedCfg.MODEL.WEIGHTS = directory_to_load_from+"/model_final.pth"
+# Change the output dir?
+# loadedCfg.OUTPUT_DIR = "/content/outputs"
+
+# Creat an output dir
+jbName = str(parser.parse_args().jobid)
+foldername = "output_"+jbName
+path = baseOutputDirectory + modelOutputFolderName + "/" + foldername
+os.makedirs(path, exist_ok=True)
+loadedCfg.OUTPUT_DIR = path
+
+# Build the model (this DOES NOT build in the weights)
+loadedModel = build_model(loadedCfg)
+
+# Load in the weights with the checkpointer
+DetectionCheckpointer(loadedModel).load(directory_to_load_from+"/model_final.pth")
+
+
+# helpful print/ wrinting function:
+def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
+  text_file = open(loadedCfg.OUTPUT_DIR+"/parameters-information.txt",writeType)
+  text_file.write(stringToPrintWrite)
+  text_file.close()
+
+  print(stringToPrintWrite)
+
+# Print / log cfg
+jbName = str(parser.parse_args().jobid)
+OutputString = "\nDate time: \t"    + dateTime \
+             + "\nJobname: \t" + jbName \
+             + "\nOutputting to: \t" + str(loadedCfg.OUTPUT_DIR) \
+             + "\nLoading from: \t" + str(directory_to_load_from) \
+             + "\n________________________________________________________" \
+             + "\nModel being used: \t" + modelLink \
+             + "\nModel index: \t\t" + str(parser.parse_args().model) \
+             + "\nLearning rate: \t\t"     + str(loadedCfg.SOLVER.BASE_LR) \
+             + "\nIteration at which LR starts to decrease by "+str(loadedCfg.SOLVER.GAMMA)+": "+str(loadedCfg.SOLVER.STEPS) \
+             + "\nMax iterations: \t"    + str(loadedCfg.SOLVER.MAX_ITER) \
+             + "\nImages per batch: \t"     + str(loadedCfg.SOLVER.IMS_PER_BATCH) \
+             + "\nNumber of classes: \t" + str(loadedCfg.MODEL.RETINANET.NUM_CLASSES) \
+             + "\n________________________________________________________" \
+             + "\n"
+
+PrintAndWriteToParams(OutputString)
 
 #-----------------------------------------------------#
 #                      Evaluate
 #-----------------------------------------------------#
-# helpful print/ wrinting function:
-def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
-  text_file = open(cfg.OUTPUT_DIR+"/parameters-information.txt",writeType)
-  text_file.write(stringToPrintWrite)
-  text_file.close()
-  print(stringToPrintWrite)
+myEvaluator = evaluate.MyEvaluator(loadedCfg,loadedModel,dataset_used,myDictGetters)
 
+# COCO Results
+appendString = "\n________________________________________________________" \
+              + "\nEvaluating the performance on TEST dataset" \
+              + "\n"
+PrintAndWriteToParams(appendString,"a+")
 
-# Attempt to create a predictor
-# This may fail if training fails, in which case we move the slurm to the output folder
-# and raise an error
-try:
-  predictor = DefaultPredictor(cfg)
-except AssertionError:
-  print("Checkpoint not found, model not found")
-  ### Move the Slurm file ###
-  # Get the jobname
-  jobName = str(parser.parse_args().jobid)
-  print("Moving ",jobName)
-  # Create the file name
-  filename = "slurm-"+jobName+".out"
-  # Copy the file
-  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-  # Delete the original 
-  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
-  raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
-
-
-# Create an evaluation dictionary which we store as a file at the end of evaluation
-evaluationDict = OrderedDict()
-
-# Add parameters to the running evaluationDict
-parameterDict = OrderedDict()
-parameterDict["jobid"] = parser.parse_args().jobid
-parameterDict["output_directory"] = cfg.OUTPUT_DIR
-parameterDict["model"] = modelOutputFolderName
-parameterDict["model_index"] = parser.parse_args().model
-parameterDict["lr"] = cfg.SOLVER.BASE_LR
-parameterDict["max_iter"] = cfg.SOLVER.MAX_ITER
-parameterDict["batch_size_per_image"] = cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
-parameterDict["images_per_batch"] = cfg.SOLVER.IMS_PER_BATCH
-parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
-parameterDict["transforms"] = "not implemented"
-evaluationDict["params"] = parameterDict
-
-# Do coco evaluation
-myEvaluator = evaluate.MyEvaluator(cfg,predictor.model,dataset_used,myDictGetters)
 cocoResults = myEvaluator.EvaluateTestCOCO()
-evaluationDict["coco"] = cocoResults
+
+appendString = "\n________________________________________________________" \
+              + "\nEvaluating the performance on TRAIN dataset" \
+              + "\n"
+PrintAndWriteToParams(appendString,"a+")
+
+cocoResults = myEvaluator.EvaluateTrainCOCO()
+
+appendString = "\n________________________________________________________" \
+              + "\nEvaluating the performance on TEST dataset" \
+              + "\n"
+PrintAndWriteToParams(appendString,"a+")
 
 
-# Do Top K Test Accuracy
+## Top K
 KAccDict = OrderedDict()
 for i in range(1,11,2):
   accResult = myEvaluator.EvaluateTestTopKAccuracy(i)
-  k = accResult["k"]
-  key = "top_"+str(k)+"_acc"
-  KAccDict[key] = accResult
 
-evaluationDict["acc"] = KAccDict
-torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
-
-
-# Create the string we're going to add to the text_file
 appendString = "\n________________________________________________________" \
-              + "\nEvaluating the performance on training dataset" \
+              + "\nEvaluating the performance on TRAIN dataset" \
               + "\n"
 PrintAndWriteToParams(appendString,"a+")
 
-
-# Do Top K Train Accuracy
+KAccDict = OrderedDict()
 for i in range(1,11,2):
-  myEvaluator.EvaluateTrainTopKAccuracy(i)
-
-# Append to file
-appendString = "\n________________________________________________________" \
-              + "\n"
-PrintAndWriteToParams(appendString,"a+")
+  accResult = myEvaluator.EvaluateTrainTopKAccuracy(i)
 
 
 #-----------------------------------------------------#
 #                Visualise Predictions
 #-----------------------------------------------------#
-test_dataset_dicts = myDictGetters.getSharkTrainDicts()
-evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,15)
+# test_dataset_dicts = myDictGetters.getSharkTrainDicts()
+# evaluate.visualisePredictedExamples(myDictGetters,cfg,predictor,shark_metadata,15)
 
 
 #-----------------------------------------------------#
 #             FINALLY: Move the Slurm File
 #-----------------------------------------------------#
-jobName = str(parser.parse_args().jobid)
+# jobName = str(parser.parse_args().jobid)
+jobName = str(actualJobID)
 # Create the file name
 filename = "slurm-"+jobName+".out"
 print("Moving ",filename)
