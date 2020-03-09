@@ -251,6 +251,8 @@ OutputString = "\nDate time: \t"    + dateTime \
 
 PrintAndWriteToParams(OutputString)
 
+PrintAndWriteToParams("\nTransforms: crop-to-bbox, rescale, brightness etc., AFFINE: shear (-8,8) in each axis + rotations (-30,30) + scale (0.9)\n","a+")
+
 #-----------------------------------------------------#
 #                      Train
 #-----------------------------------------------------#
@@ -301,7 +303,7 @@ parameterDict["batch_size_per_image"] = cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
 parameterDict["images_per_batch"] = cfg.SOLVER.IMS_PER_BATCH
 parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
 parameterDict["transforms"] = "not implemented"
-evaluationDict["params"] = parameterDict
+evaluationDict["params"] = parameterDict  
 
 # Do coco evaluation
 myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters)

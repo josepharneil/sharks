@@ -93,8 +93,8 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   # Used in evaluation
   # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
   # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7   # set the testing threshold for this model
-  cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.25  # set the testing threshold for this model
-  cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.25
+  # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.25  # set the testing threshold for this model
+  # cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.25
   cfg.DATASETS.TEST = ("shark_train","shark_val",)
 
 

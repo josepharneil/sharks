@@ -20,9 +20,10 @@ def apply_affine(affMat,x,y):
   return newX,newY
 
 class RandomAffineTransform(Transform):
-  def __init__(self, imageSize, angle=0, translate=(0,0), scale=1):
+  def __init__(self, imageSize, angle=0, translate=(0,0), scale=0.9):
     center = (imageSize[0] * 0.5 + 0.5, imageSize[1] * 0.5 + 0.5)
-    shear = (np.random.uniform(-10,10),np.random.uniform(-10,10))
+    shear = (np.random.uniform(-8,8),np.random.uniform(-8,8))
+    angle = np.random.uniform(-30,30)
 
     self.invAffMat = _get_inverse_affine_matrix(center=center, angle=angle, translate=translate, scale=scale, shear=shear)
 
