@@ -39,6 +39,8 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg.SOLVER.IMS_PER_BATCH = 8
   if(dataset_used == "large"):
     cfg.SOLVER.IMS_PER_BATCH = 4
+  if(dataset_used == "full"):
+    cfg.SOLVER.IMS_PER_BATCH = 4
   # cfg.SOLVER.IMS_PER_BATCH = 1 ##TRIED CHANGING THIS
   # cfg.SOLVER.IMS_PER_BATCH = 4
 

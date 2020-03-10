@@ -116,9 +116,9 @@ def train_mapper(dataset_dict,dataset_used):
   transforms = T.TransformList([cropT])
 
   ## Scale the image size ##
-  thresholdDimension = 1000
-  if(dataset_used == "large"):
-    thresholdDimension = 500
+  # thresholdDimension = 1000
+  # if(dataset_used == "large"):
+    # thresholdDimension = 500
   thresholdDimension = 800
 
   # Downscale only at this threshold
@@ -254,8 +254,8 @@ def test_mapper(dataset_dict,dataset_used):
 
   ## Scale the image size ##
   thresholdDimension = 1000
-  if(dataset_used == "large"):
-    thresholdDimension = 500
+  # if(dataset_used == "large"):
+    # thresholdDimension = 500
   thresholdDimension = 800
 
   # Downscale only at this threshold
@@ -347,3 +347,9 @@ def large_train_mapper(dataset_dict):
 
 def large_test_mapper(dataset_dict):
   return test_mapper(dataset_dict,"large")
+
+def full_train_mapper(dataset_dict):
+  return train_mapper(dataset_dict,"full")
+
+def full_test_mapper(dataset_dict):
+  return test_mapper(dataset_dict,"full")

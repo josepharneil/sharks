@@ -359,3 +359,42 @@ class LargeSetTrainer(SmallSetTrainer):
         writers.JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
         writers.TensorboardAndLogWriter(self.cfg,"large",self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard"),
     ]
+
+class FullSetTrainer(SmallSetTrainer):
+  @classmethod
+  def build_test_loader(cls, cfg, dataset_name):
+    return build_detection_test_loader(cfg, dataset_name, mapper=mappers.full_test_mapper)
+
+  @classmethod
+  def build_train_loader(cls, cfg):
+    return build_detection_train_loader(cfg, mapper=mappers.full_train_mapper)
+
+  def build_writers(self):
+    """
+    Build a list of writers to be used. By default it contains
+    writers that write metrics to the screen,
+    a json file, and a tensorboard event file respectively.
+    If you'd like a different list of writers, you can overwrite it in
+    your trainer.
+
+    Returns:
+        list[EventWriter]: a list of :class:`EventWriter` objects.
+
+    It is now implemented by:
+
+    .. code-block:: python
+
+        return [
+            CommonMetricPrinter(self.max_iter),
+            JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
+            TensorboardXWriter(self.cfg.OUTPUT_DIR),
+        ]
+
+    """
+    # Assume the default print/log frequency.
+    return [
+        writers.JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
+        writers.TensorboardAndLogWriter(self.cfg,"full",self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard"),
+    ]
+
+

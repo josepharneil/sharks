@@ -116,6 +116,9 @@ if(parser.parse_args().dataset == "s"):
 elif(parser.parse_args().dataset == "l"):
   dataset_used = "large"
   print("Dataset being used is the large dataset")
+elif(parser.parse_args().dataset == "f"):
+  dataset_used = "full"
+  print("Dataset being used is the full dataset")
 else:
   raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
 
@@ -131,19 +134,26 @@ baseDirectory       = ""
 baseOutputDirectory = ""
 
 if(dataset_used == "small"):
-  trainDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/train/"
-  valDirectory        = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/val/"
-  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/images/"
-  sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/data.json"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
+  trainDirectory      = baseDirectory + "train/"
+  valDirectory        = baseDirectory + "val/"
+  imageDirectory      = baseDirectory + "images/"
+  sourceJsonDirectory = baseDirectory + "data.json"
 if(dataset_used == "large"):
-  trainDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/train/"
-  valDirectory        = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/val/"
-  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/images/"
-  sourceJsonDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/data.json"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
+  trainDirectory      = baseDirectory + "train/"
+  valDirectory        = baseDirectory + "val/"
+  imageDirectory      = baseDirectory + "images/"
+  sourceJsonDirectory = baseDirectory + "data.json"
+if(dataset_used == "full"):
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/"
+  trainDirectory      = baseDirectory + "train/"
+  valDirectory        = baseDirectory + "val/"
+  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+  sourceJsonDirectory = baseDirectory + "data.json"
 
 
 actualJobID = parser.parse_args().jobid
@@ -217,6 +227,8 @@ if(dataset_used == "small"):
   trainer = train.SmallSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
 if(dataset_used == "large"):
   trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+if(dataset_used == "full"):
+  trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
 
 
 # helpful print/ wrinting function:

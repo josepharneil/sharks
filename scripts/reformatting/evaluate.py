@@ -320,6 +320,8 @@ class MyEvaluator():
       val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.small_test_mapper)
     elif(self.dataset_used == "large"):
       val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
+    elif(self.dataset_used == "full"):
+      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
     else:
       raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!"+self.dataset_used)
 
@@ -423,6 +425,8 @@ class MyEvaluator():
       val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.small_test_mapper)
     elif(self.dataset_used == "large"):
       val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.large_test_mapper)
+    elif(self.dataset_used == "full"):
+      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.full_test_mapper)
     else:
       raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!",self.dataset_used)
 
