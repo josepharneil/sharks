@@ -12,6 +12,8 @@ from termcolor import colored, cprint
 import copy
 import math
 
+from detectron2.structures import pairwise_iou
+from detectron2.structures import Boxes
 
 import mappers
 
@@ -193,6 +195,174 @@ class TopKAccuracy(DatasetEvaluator):
     return result
 
     # return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.perClassDict}
+
+
+
+
+
+#-----------------------------------------------------#
+#               Define the TopKAcc Class
+#-----------------------------------------------------#
+
+from detectron2.structures import pairwise_iou
+from detectron2.structures import Boxes
+device = torch.device('cuda')
+
+class APatIOU(DatasetEvaluator):
+  def __init__(self,IOU,getter,cfg):
+    self.ClassList = getter.getClassList()
+    self.cfg = cfg
+    self.IOU_threshold = IOU
+    self.confidence_thresholds = np.arange(0,1.00,0.01)
+    for i,c in enumerate(self.confidence_thresholds):
+      self.confidence_thresholds[i] = round(c,2)
+    self.evalDict = { "overall" : { "confidence_"+str(c) : {"TP": 0, "FP":0, "NumGT":0} for c in self.confidence_thresholds } }
+
+  def reset(self):
+    self.evalDict = { "overall" : { "confidence_"+str(c) : {"TP": 0, "FP":0, "NumGT":0} for c in self.confidence_thresholds } }
+
+  def process(self, inputs, outputs):
+    # raise NotImplementedError()
+    for input,output in zip(inputs,outputs):
+
+      ################################
+      # Groundtruth
+      ################################
+
+      # Get the groundtruth
+      # annotation = dict_["annotations"][0]
+      # groundtruth_classID = ClassList[annotation["category_id"]]
+      # groundtruth_bbox    = annotation["bbox"]
+
+      # Map the dictionary (data aug)
+      # mapped_dict = my_mapper(dict_)
+
+      # Show the transformed image
+      # tensor_mapped_image = mapped_dict["image"]
+      # numpy_mapped_image = tensor_mapped_image.detach().cpu().numpy().transpose(1,2,0)
+
+      # Get out mapped instances
+      mapped_instances = input["instances"]
+      # Get the transformed groundtruth bboxes
+      mapped_gt_box     = mapped_instances.get("gt_boxes").to(device)
+      mapped_gt_classes = mapped_instances.get("gt_classes")
+      mapped_gt_class = self.ClassList[mapped_gt_classes[0].item()]
+
+
+      ################################
+      # Predictions
+      ################################
+      # Get predictions out
+      instances = output["instances"]
+      predicted_scores   = list(instances.get("scores"))
+      predicted_boxes    = instances.get("pred_boxes")
+      predicted_classes  = list(instances.get("pred_classes"))
+
+      # Get the IOU scores between each prediction and the groundtruth
+      IOU_scores = pairwise_iou(mapped_gt_box,predicted_boxes)  
+
+      # Predictions: List of "Prediction"
+      # A Prediction is a dictionary: ["confidence","class","IOU"]
+      predictions = []
+      for i in range(0,len(predicted_scores)):
+        pred = {}
+        pred["confidence"] = predicted_scores[i].item()
+        # print(pred["confidence"])
+        pred["class"] = self.ClassList[predicted_classes[i].item()]
+        pred["iou"] = IOU_scores[0][i].item()
+        predictions.append(pred)
+
+
+      ################################
+      # Evaluation
+      ################################
+      # Create classID if it doesn't exist
+      if(mapped_gt_class not in self.evalDict):
+        self.evalDict[mapped_gt_class] = { "confidence_"+str(c) : {"TP": 0, "FP":0, "NumGT":0} for c in self.confidence_thresholds }
+      
+      # tot up the TP,FP, and GTs for this image
+      # for each confidence threshold
+      for c in self.confidence_thresholds:
+        isGroundTruthFound = False
+        # Increment the number of groundtruths
+        # overall
+        self.evalDict["overall"]["confidence_"+str(c)]["NumGT"] = 1 + self.evalDict["overall"]["confidence_"+str(c)]["NumGT"]
+        # class
+        self.evalDict[mapped_gt_class]["confidence_"+str(c)]["NumGT"] = 1 + self.evalDict[mapped_gt_class]["confidence_"+str(c)]["NumGT"]
+        # For each prediction
+        for pred in predictions:
+          # If the prediction is greater than this confidence level
+          if(pred["confidence"] >= c):
+            # If the IOU is greater than the threshold
+            if(pred["iou"] >= self.IOU_threshold):
+              # If we haven't already found the ground truth
+              if( not isGroundTruthFound ):
+              # if( not isGroundTruthFound and pred["class"] == groundtruth_classID):
+                # Count as a true postiive
+                self.evalDict["overall"]["confidence_"+str(c)]["TP"] = self.evalDict["overall"]["confidence_"+str(c)]["TP"] + 1
+                self.evalDict[mapped_gt_class]["confidence_"+str(c)]["TP"] = (self.evalDict[mapped_gt_class]["confidence_"+str(c)])["TP"] + 1
+                isGroundTruthFound = True
+              # If we have already found this groundtuth
+              else:
+                self.evalDict["overall"]["confidence_"+str(c)]["FP"] = self.evalDict["overall"]["confidence_"+str(c)]["FP"] + 1
+                self.evalDict[mapped_gt_class]["confidence_"+str(c)]["FP"] = (self.evalDict[mapped_gt_class]["confidence_"+str(c)])["FP"] + 
+                
+
+  def CalculateInterpolatedPrecision(precRec):
+    precRec = precRec.copy()
+
+    # Iterate over all classes / the ``overall'' class / the ``mean'' class
+    for overall_or_class,confidence_dict in precRec.items():
+      # Create a lookup table for interp levels for this class
+      prec_interp_lookup = {}
+      # For each confidnce level
+      for confidence_level,pred_results in confidence_dict.items():
+        # Get the precision and recall out
+        e_prec = pred_results["precision"]
+        e_rec  = pred_results["recall"]
+
+        # If this recall level is already in the lookiup table, get it from the lookup table
+        if(e_rec in prec_interp_lookup):
+          prec_interp = prec_interp_lookup[e_rec]
+        # If this recall level is not in the lookup, the compute it
+        else:
+          # Get all precisions at this recall level
+          recall_level_precisions = [ other_entry["precision"] for other_entry in confidence_dict.values() if (round(other_entry["recall"],2) == round(e_rec,2)) ]
+          # Get the highest precision
+          prec_interp = max(recall_level_precisions)
+          # Set this in the lookup table
+          prec_interp_lookup[e_rec] = prec_interp
+
+        # Set!
+        pred_results["prec_interp"] = prec_interp
+
+    return precRec
+      
+  def evaluate(self):
+    # for each confidence level
+    for overall_or_class,confidence_dict in self.evalDict.items():
+      print(overall_or_class,confidence_dict)
+      for k,v in confidence_dict.items():
+        # print(k,v)
+        TP,FP,NumGT = v["TP"],v["FP"],v["NumGT"]
+        numInst = TP+FP
+        v["precision"] = 0 if (numInst == 0) else float(TP) / float(numInst)
+        v["recall"]    = 0 if (NumGT == 0) else float(TP) / float(NumGT)
+
+    # Add in a mean class to the eval dict
+    numClasses = 0
+    self.evalDict["mean"] = { x : {"precision" : 0, "recall" : 0}    for x in self.evalDict["overall"].keys()   }
+    for overall_or_class,confidence_dict in self.evalDict.items():
+      if(overall_or_class not in ["overall","mean"]):
+        # For each confidence level
+        numClasses = numClasses + 1
+        for confidence_level,prec_recall_dict in confidence_dict.items():
+          self.evalDict["mean"][confidence_level]["recall"]    = prec_recall_dict["recall"] + self.evalDict["mean"][confidence_level]["recall"]
+          self.evalDict["mean"][confidence_level]["precision"] = prec_recall_dict["precision"] + self.evalDict["mean"][confidence_level]["precision"]
+
+    self.evalDict = CalculateInterpolatedPrecision(self.evalDict)
+    return self.evalDict
+
 
 
 
@@ -417,6 +587,42 @@ class MyEvaluator():
   def EvaluateTrainTopKAccuracy(self,numK,isReturn=False):
     return self.EvaluateTopKAccuracy("train",numK,isReturn=False)
 
+
+  def EvaluateAP(self,test_or_train,IOU):
+    # Decide if we're evaluating test or train set
+    if(test_or_train == "test"):
+      datasetName = "shark_val"
+    elif(test_or_train == "train"):
+      datasetName = "shark_train"
+    else:
+      raise ValueError("Evaluate AP: Dataset inputted doesn't exist!"+test_or_train)
+
+    # Set up the val_loader with the appropriate mapper
+    if(self.dataset_used == "small"):
+      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.small_test_mapper)
+    elif(self.dataset_used == "large"):
+      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
+    elif(self.dataset_used == "full"):
+      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
+    else:
+      raise ValueError("Evaluate AP: Dataset inputted doesn't exist!"+self.dataset_used)
+
+    # Create evaluator object
+    ap_evaluator = APatIOU(IOU=IOU,getter=self.getter,cfg=self.cfg)
+
+    # Get the accuracy results
+    AP_results = inference_on_dataset(self.model, val_loader, ap_evaluator)
+
+    return AP_results
+
+  def EvaluateTestAP(self,IOU):
+    return self.EvaluateAP("test",IOU)
+
+  def EvaluateTrainAP(self,IOU):
+    return self.EvaluateAP("train",IOU)
+  
+
+
   def EvaluateCOCO(self,dataset_to_eval):
     # The loader for the test data (applies various transformations if we so choose)
     # val_loader = build_detection_test_loader(self.cfg, "shark_val", mapper=test_mapper)
@@ -500,12 +706,80 @@ class MyEvaluator():
     resultDict["PerClassAP"] = copycocoB
     return resultDict
 
-
   def EvaluateTestCOCO(self):
     return self.EvaluateCOCO("shark_val")
 
   def EvaluateTrainCOCO(self):
     return self.EvaluateCOCO("shark_train")
+
+
+
+def GetAP(points):
+  overall_area = 0
+
+  for i in range(0,len(points)-1):
+
+    # Get the two points
+    x0,y0 = points[i]
+    x1,y1 = points[i+1]
+
+    # Get the width
+    width = abs(x1 - x0)
+    # Get the tri width
+    tri_h = abs(y1 - y0)
+    # Get rect width
+    rect_h = min([y1,y0])
+
+    # Calculate the areas
+    rect_area = rect_h * width
+    tri_area = tri_h * width * 0.5
+
+    # Add them to the running total
+    overall_area = overall_area + tri_area + rect_area
+
+  # Retun final AP
+  return overall_area
+
+def GetAPForClass(interpolated_data,className)#,isPlot=False,isStep=False):
+  # Get the condince levels for this class
+  confidence_dict = interpolated_data[className]
+  # Get all the points
+  ps = [ (v["recall"],v["prec_interp"]) for v in confidence_dict.values() ]
+  xs,ys = [p[0] for p in ps],[p[1] for p in ps]
+  
+  # Append the final cutoff point
+  # Find the point which has the smallest x, and append that x's y
+  if(0 not in xs):
+    ps.append((0,ys[np.argmin(xs)]))
+
+  # Prepend the first point
+  # Find the point which has the largest x, and prepend that x's y
+  if(0 not in ys):
+    ps.insert(0, (max(xs),0))
+  
+  # if(isPlot):
+  #   xs,ys = [p[0] for p in ps],[p[1] for p in ps]
+  #   plt.figure(figsize=(10,10))
+  #   plt.xlim(0,1.05)
+  #   plt.ylim(0,1.05)
+  #   if(isStep):
+  #     plt.step(xs,ys)
+  #     xs.insert(0, 0); ys.insert(0, 0)
+  #     plt.fill(xs, ys, facecolor='blue', alpha=0.5)
+  #   else:
+  #     plt.plot(xs,ys,"+")
+  #   plt.show()
+
+  # Calculate and return the AP
+  return GetAP(ps)
+
+
+
+
+
+
+
+
 
 
 

@@ -261,10 +261,12 @@ def constructSharkDicts(dataDirectory):
 # Construct the two sub dictionaries (train and val)
 
 tmpDict = constructSharkDicts(trainDirectory)#"/content/drive/My Drive/sharkdata/initial/images/train/")
+print("Saving train dict of length: ",len(tmpDict))
 # torch.save(tmpDict,"/content/drive/My Drive/sharkdata/initial/images/sharkTrainDicts.pt")
 torch.save(tmpDict,trainDirectory+"/sharkTrainDicts.pt")
 
 # tmpDict = constructSharkDicts("/content/drive/My Drive/sharkdata/initial/images/val/")
 tmpDict = constructSharkDicts(valDirectory)
+print("Saving val dict of length: ",len(tmpDict))
 # torch.save(tmpDict,"/content/drive/My Drive/sharkdata/initial/images/sharkValDicts.pt")
 torch.save(tmpDict,valDirectory+"/sharkValDicts.pt")

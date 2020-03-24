@@ -44,9 +44,6 @@ import getters
 import writers
 import train
 
-from detectron2.modeling import build_model
-from detectron2.checkpoint import DetectionCheckpointer
-
 print("Imports done")
 
 # Get the datetime for logging purposes
@@ -103,13 +100,13 @@ parser.add_argument(
   type=int,
   help="Whether to track accuracy or not during training (this is *very* intensive)"
 )
-# parser.add_argument(
-#   "-r",
-#   "--resume",
-#   default=None,
-#   type=str,
-#   help="Absolute path of the directory to get the checkpoint to resume from"
-# )
+parser.add_argument(
+  "-r",
+  "--resume",
+  default=-1,
+  type=int,
+  help="JobID to resume from"
+)
 
 
 dataset_used = ""
@@ -159,10 +156,15 @@ if(dataset_used == "full"):
   sourceJsonDirectory = baseDirectory + "data.json"
 
 
+#-----------------------------------------------------#
+#                  Handle ResumeID
+#-----------------------------------------------------#
 actualJobID = parser.parse_args().jobid
-resumeID = 3380515
-# print("parser.parse_args().jobid:",parser.parse_args().jobid)
-
+resumeID = parser.parse_args().resume #3380515
+if(resumeID == -1):
+  print("Training new model: ",actualJobID)
+else:
+  print("Resuming training from: ",resumeID)
 
 #-----------------------------------------------------#
 #                   Get Dicts
@@ -188,9 +190,12 @@ shark_metadata = MetadataCatalog.get("shark_train")
 
 
 
+
 #-----------------------------------------------------#
-#                 Create the config
+#                Load the Config
 #-----------------------------------------------------#
+directory_to_load_from = "???"
+
 modelLink = ""
 modelOutputFolderName = ""
 if(parser.parse_args().model == 0):
@@ -212,31 +217,34 @@ else:
   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
   modelOutputFolderName = "retinanet_R_50_FPN_1x"
 
-cfg = config.CreateCfg(parser=parser.parse_args(),
-                dataset_used=dataset_used,
-                numClasses=len(SharkClassDictionary),
-                baseOutputDir=baseOutputDirectory,
-                modelLink=modelLink,
-                modelOutputFolderName=modelOutputFolderName,
-                jobIDOverride=resumeID)
+from detectron2.modeling import build_model
+from detectron2.checkpoint import DetectionCheckpointer
 
-#-----------------------------------------------------#
-#              Create the Trainer
-#-----------------------------------------------------#
-# Create and evaluator to be used in training
-# evaluator = evaluate.MyEvaluator(trainer.model,cfg,dataset_used)
 
-if(dataset_used == "small"):
-  trainer = train.SmallSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "large"):
-  trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "full"):
-  trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+# Load the CFG file
+loadedCfg = torch.load(directory_to_load_from+"/cfg.yaml")
+# Load in the weights
+loadedCfg.MODEL.WEIGHTS = directory_to_load_from+"/model_final.pth"
+# Change the output dir?
+# loadedCfg.OUTPUT_DIR = "/content/outputs"
+
+# Creat an output dir
+jbName = str(parser.parse_args().jobid)
+foldername = "output_"+jbName
+path = baseOutputDirectory + modelOutputFolderName + "/" + foldername
+os.makedirs(path, exist_ok=True)
+loadedCfg.OUTPUT_DIR = path
+
+# Build the model (this DOES NOT build in the weights)
+loadedModel = build_model(loadedCfg)
+
+# Load in the weights with the checkpointer
+DetectionCheckpointer(loadedModel).load(directory_to_load_from+"/model_final.pth")
 
 
 # helpful print/ wrinting function:
 def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
-  text_file = open(cfg.OUTPUT_DIR+"/parameters-information-"+str(resumeID)+".txt",writeType)
+  text_file = open(loadedCfg.OUTPUT_DIR+"/parameters-information"++".txt",writeType)
   text_file.write(stringToPrintWrite)
   text_file.close()
 
@@ -246,168 +254,75 @@ def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
 jbName = str(parser.parse_args().jobid)
 OutputString = "\nDate time: \t"    + dateTime \
              + "\nJobname: \t" + jbName \
-             + "\nOutputting to: \t" + str(cfg.OUTPUT_DIR) \
+             + "\nOutputting to: \t" + str(loadedCfg.OUTPUT_DIR) \
+             + "\nLoading from: \t" + str(directory_to_load_from) \
              + "\n________________________________________________________" \
              + "\nModel being used: \t" + modelLink \
              + "\nModel index: \t\t" + str(parser.parse_args().model) \
-             + "\nLearning rate: \t\t"     + str(cfg.SOLVER.BASE_LR) \
-             + "\nIteration at which LR starts to decrease by "+str(cfg.SOLVER.GAMMA)+": "+str(cfg.SOLVER.STEPS) \
-             + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
-             + "\nImages per batch: \t"     + str(cfg.SOLVER.IMS_PER_BATCH) \
-             + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
+             + "\nLearning rate: \t\t"     + str(loadedCfg.SOLVER.BASE_LR) \
+             + "\nIteration at which LR starts to decrease by "+str(loadedCfg.SOLVER.GAMMA)+": "+str(loadedCfg.SOLVER.STEPS) \
+             + "\nMax iterations: \t"    + str(loadedCfg.SOLVER.MAX_ITER) \
+             + "\nImages per batch: \t"     + str(loadedCfg.SOLVER.IMS_PER_BATCH) \
+             + "\nNumber of classes: \t" + str(loadedCfg.MODEL.RETINANET.NUM_CLASSES) \
              + "\n________________________________________________________" \
              + "\n"
 
 PrintAndWriteToParams(OutputString)
 
 #-----------------------------------------------------#
-#                      Train
-#-----------------------------------------------------#
-# If true, and the last checkpoint exists, resume from it
-# If false, load a model specified by the config
-# temp = cfg.OUTPUT_DIR
-# cfg.OUTPUT_DIR = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515"#parser.parse_args().checkpoint
-# cfg.OUTPUT_DIR = parser.parse_args().checkpoint
-# trainer.resume_or_load(resume=True)
-# cfg.OUTPUT_DIR = temp
-# cfg.MODEL.WEIGHTS = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515/model_0394999.pth"
-# trainer.start_iter = 394999+1
-
-# trainer.resume_or_load(resume=True)
-# print(trainer.checkpointer.save_dir)
-# trainer.train()
-
-# manually load model weights 
-
-
-# cfg = get_cfg()
-# cfg.merge_from_file("/content/drive/My Drive/large_best/cfg.yaml")
-# cfg.MODEL.WEIGHTS = "/content/drive/My Drive/large_best/model_final.pth"
-
-# the folder name
-resume_foldername = "output_"+resumeID
-# base folder + the output folder + resume folder
-resume_path = baseOutputDirectory + modelOutputFolderName + "/" + resume_foldername
-
-# Load the cfg and weights from the files
-loadedCfg = torch.load(resume_path+"/cfg.yaml")
-loadedCfg.MODEL.WEIGHTS = resume_path+"/model_final.pth"
-
-# For older models, these are wrong, so fix it
-loadedCfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.05
-loadedCfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.05
-
-# Build the model
-loadedModel = build_model(loadedCfg)
-# Load the model
-DetectionCheckpointer(loadedModel).load(resume_path+"/model_final.pth")
-
-
-# print(loadedCfg.MODEL.WEIGHTS)
-
-# loadedCfg = torch.load("/content/drive/My Drive/large_best/cfg.yaml")
-# loadedModel = torch.load("/content/drive/My Drive/large_best/model_final.pth")
-# print(loadedCfg.DATASETS.TEST)
-
-
-#-----------------------------------------------------#
 #                      Evaluate
 #-----------------------------------------------------#
-# Load the final model outputted in training
-# cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
-
-# Attempt to create a predictor
-# This may fail if training fails, in which case we move the slurm to the output folder
-# and raise an error
-try:
-  predictor = DefaultPredictor(cfg)
-except AssertionError:
-  print("Checkpoint not found, model not found")
-  ### Move the Slurm file ###
-  # Get the jobname
-  jobName = str(parser.parse_args().jobid)
-  print("Moving ",jobName)
-  # Create the file name
-  filename = "slurm-"+jobName+".out"
-  # Copy the file
-  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-  # Delete the original 
-  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
-  raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
-
-
-# Create an evaluation dictionary which we store as a file at the end of evaluation
-evaluationDict = OrderedDict()
-
-# Add parameters to the running evaluationDict
-parameterDict = OrderedDict()
-parameterDict["jobid"] = parser.parse_args().jobid
-parameterDict["output_directory"] = cfg.OUTPUT_DIR
-parameterDict["model"] = modelOutputFolderName
-parameterDict["model_index"] = parser.parse_args().model
-parameterDict["lr"] = cfg.SOLVER.BASE_LR
-parameterDict["max_iter"] = cfg.SOLVER.MAX_ITER
-parameterDict["batch_size_per_image"] = cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
-parameterDict["images_per_batch"] = cfg.SOLVER.IMS_PER_BATCH
-parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
-parameterDict["transforms"] = "not implemented"
-evaluationDict["params"] = parameterDict
-
-# Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters)
-
-# coco
-# cocoResults = myEvaluator.EvaluateTestCOCO()
-# evaluationDict["coco"] = cocoResults
+myEvaluator = evaluate.MyEvaluator(loadedCfg,loadedModel,dataset_used,myDictGetters)
 
 # AP
 pathToAPFolder = loadedCfg.OUTPUT_DIR + "/AP_Evaluation"
 os.makedirs(pathToAPFolder, exist_ok=True)
 
-def EvaluateAPatIOU(IOU):
-  # Get the interp data at IOU
-  interp_data_XX = myEvaluator.EvaluateTestAP(IOU)
-  # Save the dictionary for future plotting
-  torch.save(interp_data_XX,pathToAPFolder+"/interp_data_"+str(IOU)+".pt")
-  # Get the AP
-  AP_at_XX = evaluate.GetAPForClass(interp_data_XX,"overall")
-  # Print and append to file
-  appendString = "Overall AP at IOU "+str(IOU)+": " + AP_at_XX + "\n"
-  PrintAndWriteToParams(appendString,"a+")
-
-EvaluateAPatIOU(0.5)
-EvaluateAPatIOU(0.7)
-EvaluateAPatIOU(0.85)
-EvaluateAPatIOU(9)
+# Get the interp data at IOU 50
+interp_data_50 = myEvaluator.EvaluateTestAP(IOU=0.5)
+# Save the dictionary for future plotting
+torch.save(interp_data_50,pathToAPFolder+"/interp_data_50.pt")
+# Get the AP
+AP_at_50 = evaluate.GetAPForClass(interp_data_50,"overall")
+print(AP_at_50)
+PrintAndWriteToParams
 
 
-# Do Top K Test Accuracy
+
+# # COCO Results
+# appendString = "\n________________________________________________________" \
+#               + "\nEvaluating the performance on TEST dataset" \
+#               + "\n"
+# PrintAndWriteToParams(appendString,"a+")
+
+# cocoResults = myEvaluator.EvaluateTestCOCO()
+
+# appendString = "\n________________________________________________________" \
+#               + "\nEvaluating the performance on TRAIN dataset" \
+#               + "\n"
+# PrintAndWriteToParams(appendString,"a+")
+
+# cocoResults = myEvaluator.EvaluateTrainCOCO()
+
+# appendString = "\n________________________________________________________" \
+#               + "\nEvaluating the performance on TEST dataset" \
+#               + "\n"
+# PrintAndWriteToParams(appendString,"a+")
+
+
+## Top K
 KAccDict = OrderedDict()
 for i in range(1,11,2):
   accResult = myEvaluator.EvaluateTestTopKAccuracy(i)
-  k = accResult["k"]
-  key = "top_"+str(k)+"_acc"
-  KAccDict[key] = accResult
 
-evaluationDict["acc"] = KAccDict
-torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
-
-
-# Create the string we're going to add to the text_file
 appendString = "\n________________________________________________________" \
-              + "\nEvaluating the performance on training dataset" \
+              + "\nEvaluating the performance on TRAIN dataset" \
               + "\n"
 PrintAndWriteToParams(appendString,"a+")
 
-
-# Do Top K Train Accuracy
+KAccDict = OrderedDict()
 for i in range(1,11,2):
-  myEvaluator.EvaluateTrainTopKAccuracy(i)
-
-# Append to file
-appendString = "\n________________________________________________________" \
-              + "\n"
-PrintAndWriteToParams(appendString,"a+")
+  accResult = myEvaluator.EvaluateTrainTopKAccuracy(i)
 
 
 #-----------------------------------------------------#

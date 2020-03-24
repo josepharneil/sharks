@@ -107,6 +107,13 @@ parser.add_argument(
   type=int,
   help="JobID to resume from"
 )
+parser.add_argument(
+  "-b",
+  "--batch-size",
+  default=0,
+  type=int,
+  help="Batch size"
+)
 
 
 dataset_used = ""
@@ -160,7 +167,7 @@ if(dataset_used == "full"):
 #-----------------------------------------------------#
 actualJobID = parser.parse_args().jobid
 resumeID = parser.parse_args().resume #3380515
-if(resumeID == -1):
+if(resumeID == -1 or resumeID == 0):
   print("Training new model: ",actualJobID)
 else:
   print("Resuming training from: ",resumeID)
@@ -204,8 +211,10 @@ elif(parser.parse_args().model == 2):
   modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
   modelOutputFolderName = "retinanet_R_101_FPN_3x"
 elif(parser.parse_args().model == 3):
-  modelLink = "COCO-Detection/faster_rcnn_R_50_C4_1x.yaml"
-  modelOutputFolderName = "faster_rcnn_R_50_C4_1x"
+  modelLink = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"
+  modelOutputFolderName = "faster_rcnn_X_101_32x8d_FPN_3x"
+  # modelLink = "COCO-Detection/faster_rcnn_R_50_C4_1x.yaml"
+  # modelOutputFolderName = "faster_rcnn_R_50_C4_1x"
 elif(parser.parse_args().model == 4):
   modelLink = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
   modelOutputFolderName = "mask_rcnn_R_50_FPN_3x"
@@ -272,7 +281,7 @@ PrintAndWriteToParams("\nTransforms: crop-to-bbox, rescale, brightness etc., AFF
 # If false, load a model specified by the config
 
 # Don't resume
-if(resumeID == -1):
+if(resumeID == -1 or resumeID == 0):
   trainer.resume_or_load(resume=False)  
 # Do resume
 else:
@@ -325,13 +334,32 @@ parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
 parameterDict["transforms"] = "not implemented"
 evaluationDict["params"] = parameterDict  
 
-# Do coco evaluation
+# Create evaluator object
 myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters)
-cocoValResults = myEvaluator.EvaluateTestCOCO()
-evaluationDict["coco_val"] = cocoValResults
 
-cocoTrainResults = myEvaluator.EvaluateTrainCOCO()
-evaluationDict["coco_train"] = cocoTrainResults
+# coco
+# cocoValResults = myEvaluator.EvaluateTestCOCO()
+# evaluationDict["coco_val"] = cocoValResults
+
+# cocoTrainResults = myEvaluator.EvaluateTrainCOCO()
+# evaluationDict["coco_train"] = cocoTrainResults
+
+# AP
+pathToAPFolder = cfg.OUTPUT_DIR + "/AP_Evaluation"
+os.makedirs(pathToAPFolder, exist_ok=True)
+
+def EvaluateAPatIOU(IOU):
+  # Get the interp data at IOU
+  interp_data_XX = myEvaluator.EvaluateTestAP(IOU)
+  # Save the dictionary for future plotting
+  torch.save(interp_data_XX,pathToAPFolder+"/interp_data_"+str(IOU)+".pt")
+  # Get the AP
+  AP_at_XX = evaluate.GetAPForClass(interp_data_XX,"overall")
+  # Print and append to file
+  appendString = "Overall AP at IOU "+str(IOU)+": " + AP_at_XX + "\n"
+  PrintAndWriteToParams(appendString,"a+")
+
+EvaluateAPatIOU(0.5)
 
 
 # Do Top K Test Accuracy

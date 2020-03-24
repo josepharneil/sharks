@@ -88,6 +88,8 @@ def train_mapper(dataset_dict,dataset_used):
   w = xmax-xmin
   h = ymax-ymin
 
+  # IsCropToBBox = True
+  # if(IsCropToBBox):
   # Nudge the crop to be slightly outside of the bounding box
   nudgedXMin = xmin-15
   nudgedYMin = ymin-15
@@ -114,12 +116,18 @@ def train_mapper(dataset_dict,dataset_used):
   
   # Add to the list of transforms
   transforms = T.TransformList([cropT])
+  # else:
+  #   nudgedH = dataset_dict["height"]
+  #   nudgedW = dataset_dict["width"]
+    
 
   ## Scale the image size ##
   # thresholdDimension = 1000
   # if(dataset_used == "large"):
     # thresholdDimension = 500
-  thresholdDimension = 800
+  # thresholdDimension = 800
+  # thresholdDimension = 600
+  thresholdDimension = 400
 
   # Downscale only at this threshold
   if(nudgedH > thresholdDimension or nudgedW > thresholdDimension):

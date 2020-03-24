@@ -36,13 +36,15 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(modelLink)  # Let training initialize from model zoo
 
   # number of images per batch
-  cfg.SOLVER.IMS_PER_BATCH = 8
-  if(dataset_used == "large"):
-    cfg.SOLVER.IMS_PER_BATCH = 4
-  if(dataset_used == "full"):
-    cfg.SOLVER.IMS_PER_BATCH = 4
-  # cfg.SOLVER.IMS_PER_BATCH = 1 ##TRIED CHANGING THIS
-  # cfg.SOLVER.IMS_PER_BATCH = 4
+  if(parser.batch_size == 0):
+    cfg.SOLVER.IMS_PER_BATCH = 8
+    if(dataset_used == "large"):
+      cfg.SOLVER.IMS_PER_BATCH = 4
+    if(dataset_used == "full"):
+      cfg.SOLVER.IMS_PER_BATCH = 4
+  else:
+    cfg.SOLVER.IMS_PER_BATCH = parser.batch_size
+
 
   # learning rate
   if(parser.learning_rate == -1):
@@ -81,7 +83,7 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg.MODEL.RETINANET.NUM_CLASSES = numClasses  # only has one class (ballon)
 
   # def CreateOutputFolder():
-  if(jobIDOverride == -1):
+  if(jobIDOverride == -1 or jobIDOverride == 0):
     jbName = str(parser.jobid)
   else:
     jbName = str(jobIDOverride)
