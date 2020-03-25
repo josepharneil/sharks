@@ -319,10 +319,29 @@ parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
 parameterDict["transforms"] = "not implemented"
 evaluationDict["params"] = parameterDict
 
-# Do coco evaluation
+# Create evaluator object
 myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters)
-cocoResults = myEvaluator.EvaluateTestCOCO()
-evaluationDict["coco"] = cocoResults
+
+# COCO 
+# cocoResults = myEvaluator.EvaluateTestCOCO()
+# evaluationDict["coco"] = cocoResults
+
+# AP
+pathToAPFolder = cfg.OUTPUT_DIR + "/AP_Evaluation"
+os.makedirs(pathToAPFolder, exist_ok=True)
+
+def EvaluateAPatIOU(IOU):
+  # Get the interp data at IOU
+  interp_data_XX = myEvaluator.EvaluateTestAP(IOU)
+  # Save the dictionary for future plotting
+  torch.save(interp_data_XX,pathToAPFolder+"/interp_data_"+str(IOU)+".pt")
+  # Get the AP
+  AP_at_XX = evaluate.GetAPForClass(interp_data_XX,"overall")
+  # Print and append to file
+  appendString = "Overall AP at IOU "+str(IOU)+": " + AP_at_XX + "\n"
+  PrintAndWriteToParams(appendString,"a+")
+
+EvaluateAPatIOU(0.5)
 
 
 # Do Top K Test Accuracy
