@@ -5,7 +5,7 @@
 {\*\expandedcolortbl;;\cssrgb\c100000\c100000\c100000;\cssrgb\c40000\c40000\c40000;}
 {\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid2\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li1440\lin1440 }{\listname ;}\listid1}}
 {\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
-\paperw11900\paperh16840\margl1440\margr1440\vieww19000\viewh21200\viewkind0
+\paperw11900\paperh16840\margl1440\margr1440\vieww19000\viewh10120\viewkind0
 \deftab720
 \pard\pardeftab720\partightenfactor0
 
@@ -42,10 +42,14 @@ srun --partition gpu --gres gpu:1 --account
 \
 srun --partition gpu --gres gpu:1 --time 0-00:30 --mem\cf3 =\cf0 64GB --pty bash\
 \
+srun --partition gpu_veryshort --gres gpu:1 --time 0-00:15 --mem\cf3 =\cf0 64GB --pty bash\
+\
+\pard\pardeftab720\partightenfactor0
 
-\f1\b \
+\f1\b \cf0 \
+\pard\pardeftab720\partightenfactor0
 
-\f2\b0 \
+\f2\b0 \cf0 \
 \pard\pardeftab720\partightenfactor0
 
 \f3 \cf0 You need to change the account number to the correct one obviously.\
