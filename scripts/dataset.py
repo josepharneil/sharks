@@ -71,9 +71,11 @@ elif(parser.parse_args().dataset == "l"):
 elif(parser.parse_args().dataset == "f"):
   dataset_used = "full"
   print("Dataset being used is the full dataset")
+elif(parser.parse_args().dataset == "c"):
+  dataset_used = "comparison"
+  print("Dataset being used is the comparison dataset")
 else:
   raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
-
 
 """# Directories"""
 
@@ -105,6 +107,13 @@ if(dataset_used == "full"):
   trainDirectory      = baseDirectory + "train/"
   valDirectory        = baseDirectory + "val/"
   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+  sourceJsonDirectory = baseDirectory + "data.json"
+if(dataset_used == "comparison"):
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/comparison_set/"
+  trainDirectory      = baseDirectory + "train/"
+  valDirectory        = baseDirectory + "val/"
+  imageDirectory      = baseDirectory + "images/"
   sourceJsonDirectory = baseDirectory + "data.json"
 
 """# Dataset
@@ -181,6 +190,8 @@ def constructSharkDicts(dataDirectory):
       if(i % 1000 == 0): print(i)
     if(dataset_used == "full"): 
       if(i % 1000 == 0): print(i)
+    if(dataset_used == "comparison"): 
+      if(i % 500 == 0): print(i)
 
     # if(i == 5000): break
 
@@ -230,15 +241,26 @@ def constructSharkDicts(dataDirectory):
     classID = SharkClassDictionary[sharkID]
 
     # Construct an annotation object (only one in this case)
-    obj = \
-    {
-        "bbox": [xmin,ymin,xmax,ymax],
-        "bbox_mode": BoxMode.XYXY_ABS,
-        # "sementation": [poly],
-        "category_id": classID, #this needs to be an INTEGER ID for the shark's category, so we have created a mapping from sharkIDs to classIDs
-        "iscrowd": 0
-    }
-    objs.append(obj)
+    if(dataset_used is not "comparison"):
+      obj = \
+      {
+          "bbox": [xmin,ymin,xmax,ymax],
+          "bbox_mode": BoxMode.XYXY_ABS,
+          # "sementation": [poly],
+          "category_id": classID, #this needs to be an INTEGER ID for the shark's category, so we have created a mapping from sharkIDs to classIDs
+          "iscrowd": 0
+      }
+      objs.append(obj)
+    else:
+      obj = \
+      {
+          # "bbox": [xmin,ymin,xmax,ymax],
+          # "bbox_mode": BoxMode.XYXY_ABS,
+          # "sementation": [poly],
+          "category_id": classID, #this needs to be an INTEGER ID for the shark's category, so we have created a mapping from sharkIDs to classIDs
+          "iscrowd": 0
+      }
+      objs.append(obj)
 
     # Populate record
     record["file_name"] = filename
