@@ -122,6 +122,9 @@ elif(parser.parse_args().dataset == "l"):
 elif(parser.parse_args().dataset == "f"):
   dataset_used = "full"
   print("Dataset being used is the full dataset")
+elif(parser.parse_args().dataset == "c"):
+  dataset_used = "comparison"
+  print("Dataset being used is the comparison dataset")
 else:
   raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
 
@@ -156,6 +159,13 @@ if(dataset_used == "full"):
   trainDirectory      = baseDirectory + "train/"
   valDirectory        = baseDirectory + "val/"
   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+  sourceJsonDirectory = baseDirectory + "data.json"
+if(dataset_used == "comparison"):
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/comparison_set/"
+  trainDirectory      = baseDirectory + "train/"
+  valDirectory        = baseDirectory + "val/"
+  imageDirectory      = baseDirectory + "images/"
   sourceJsonDirectory = baseDirectory + "data.json"
 
 
@@ -232,6 +242,8 @@ if(dataset_used == "large"):
   trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
 if(dataset_used == "full"):
   trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+if(dataset_used == "comparison"):
+  trainer = train.ComparisonSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
 
 
 # helpful print/ wrinting function:
@@ -367,12 +379,13 @@ os.makedirs(pathToAPFolder, exist_ok=True)
 def EvaluateAPatIOU(IOU):
   # Get the interp data at IOU
   interp_data_XX = myEvaluator.EvaluateTestAP(IOU)
+  stringIOU = str(int(IOU * 100))
   # Save the dictionary for future plotting
-  torch.save(interp_data_XX,pathToAPFolder+"/interp_data_"+str(IOU)+".pt")
+  torch.save(interp_data_XX,pathToAPFolder+"/interp_data_"+stringIOU+".pt")
   # Get the AP
-  AP_at_XX = evaluate.GetAPForClass(interp_data_XX,"overall")
+  AP_at_XX_For_Class = evaluate.GetAPForClass(interp_data_XX,"overall")
   # Print and append to file
-  appendString = "Overall AP at IOU "+str(IOU)+": " + AP_at_XX + "\n"
+  appendString = "Overall AP at IOU "+stringIOU+": " + str(AP_at_XX_For_Class) + "\n"
   PrintAndWriteToParams(appendString,"a+")
 
 EvaluateAPatIOU(0.5)

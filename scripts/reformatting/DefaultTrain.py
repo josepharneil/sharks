@@ -337,6 +337,9 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
                     )
                     results[dataset_name] = {}
                     continue
+            
+            # if(True): return results
+            # return results
             results_i = evaluate.inference_on_dataset(model, data_loader, evaluator)
 
             accuracy_test  = round((results_i["accuracy"]*100 ),2)

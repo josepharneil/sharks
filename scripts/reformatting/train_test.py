@@ -126,6 +126,9 @@ elif(parser.parse_args().dataset == "l"):
 elif(parser.parse_args().dataset == "f"):
   dataset_used = "full"
   print("Dataset being used is the full dataset")
+elif(parser.parse_args().dataset == "c"):
+  dataset_used = "comparison"
+  print("Dataset being used is the comparison dataset")
 else:
   raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
 
@@ -160,6 +163,13 @@ if(dataset_used == "full"):
   trainDirectory      = baseDirectory + "train/"
   valDirectory        = baseDirectory + "val/"
   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+  sourceJsonDirectory = baseDirectory + "data.json"
+if(dataset_used == "comparison"):
+  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/comparison_set/"
+  trainDirectory      = baseDirectory + "train/"
+  valDirectory        = baseDirectory + "val/"
+  imageDirectory      = baseDirectory + "images/"
   sourceJsonDirectory = baseDirectory + "data.json"
 
 #-----------------------------------------------------#
@@ -211,8 +221,16 @@ elif(parser.parse_args().model == 2):
   modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
   modelOutputFolderName = "retinanet_R_101_FPN_3x"
 elif(parser.parse_args().model == 3):
-  modelLink = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"
-  modelOutputFolderName = "faster_rcnn_X_101_32x8d_FPN_3x"
+  # modelLink = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"
+  # modelOutputFolderName = "faster_rcnn_X_101_32x8d_FPN_3x"
+
+  
+  modelLink = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+  modelOutputFolderName = "faster_rcnn_R_50_FPN_3x.yaml"
+
+  # modelLink = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+  # modelOutputFolderName = "faster_rcnn_R_101_FPN_3x.yaml"
+  
   # modelLink = "COCO-Detection/faster_rcnn_R_50_C4_1x.yaml"
   # modelOutputFolderName = "faster_rcnn_R_50_C4_1x"
 elif(parser.parse_args().model == 4):
@@ -243,6 +261,8 @@ if(dataset_used == "large"):
   trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
 if(dataset_used == "full"):
   trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+if(dataset_used == "comparison"):
+  trainer = train.ComparisonSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
 
 
 # helpful print/ wrinting function:
@@ -283,9 +303,11 @@ PrintAndWriteToParams("\nTransforms: crop-to-bbox, rescale, brightness etc., AFF
 # Don't resume
 if(resumeID == -1 or resumeID == 0):
   trainer.resume_or_load(resume=False)  
+  print("Don't resume")
 # Do resume
 else:
   trainer.resume_or_load(resume=True)
+  print("Resume")
   print(trainer.checkpointer.save_dir)
 
 trainer.train()
@@ -351,12 +373,13 @@ os.makedirs(pathToAPFolder, exist_ok=True)
 def EvaluateAPatIOU(IOU):
   # Get the interp data at IOU
   interp_data_XX = myEvaluator.EvaluateTestAP(IOU)
+  stringIOU = str(int(IOU * 100))
   # Save the dictionary for future plotting
-  torch.save(interp_data_XX,pathToAPFolder+"/interp_data_"+str(IOU)+".pt")
+  torch.save(interp_data_XX,pathToAPFolder+"/interp_data_"+stringIOU+".pt")
   # Get the AP
-  AP_at_XX = evaluate.GetAPForClass(interp_data_XX,"overall")
+  AP_at_XX_For_Class = evaluate.GetAPForClass(interp_data_XX,"overall")
   # Print and append to file
-  appendString = "Overall AP at IOU "+str(IOU)+": " + AP_at_XX + "\n"
+  appendString = "Overall AP at IOU "+stringIOU+": " + str(AP_at_XX_For_Class) + "\n"
   PrintAndWriteToParams(appendString,"a+")
 
 EvaluateAPatIOU(0.5)

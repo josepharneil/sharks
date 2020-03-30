@@ -22,6 +22,8 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg.merge_from_file(model_zoo.get_config_file(modelLink))
   # cfg.merge_from_file(model_zoo.get(modelLink,trained=False))#?
 
+  cfg.MODEL.DEVICE = "cuda"
+
   # list of the dataset names for training (registered in datasetcatalog)
   cfg.DATASETS.TRAIN = ("shark_train",)
   # cfg.DATASETS.TRAIN = ("shark_val",)
@@ -73,10 +75,13 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
 
 
   # _C.SOLVER.CHECKPOINT_PERIOD = 5000 #CONSIDER CHANGING THIS
-  numberOfCheckpoints = 20
+  numberOfCheckpoints = 5
   checkpointPeriod = int(round(cfg.SOLVER.MAX_ITER/numberOfCheckpoints))
   # cfg.SOLVER.CHECKPOINT_PERIOD = checkpointPeriod
   cfg.TEST.EVAL_PERIOD = checkpointPeriod
+  # if(parser.accuracy == 0):
+    # cfg.TEST.EVAL_PERIOD = 0 # TO DISABLE
+  # cfg.TEST.EVAL_PERIOD = 0
 
   # Number of classes
   cfg.MODEL.ROI_HEADS.NUM_CLASSES = numClasses  # only has one class (ballon)

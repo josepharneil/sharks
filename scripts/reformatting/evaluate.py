@@ -17,6 +17,7 @@ from detectron2.structures import Boxes
 
 import mappers
 
+import numpy as np
 
 #-----------------------------------------------------#
 #               Define the TopKAcc Class
@@ -296,8 +297,8 @@ class APatIOU(DatasetEvaluator):
             # If the IOU is greater than the threshold
             if(pred["iou"] >= self.IOU_threshold):
               # If we haven't already found the ground truth
-              if( not isGroundTruthFound ):
-              # if( not isGroundTruthFound and pred["class"] == groundtruth_classID):
+              if( (not isGroundTruthFound) and (mapped_gt_class ==  pred["class"])  ):
+              # if( not isGroundTruthFound)#
                 # Count as a true postiive
                 self.evalDict["overall"]["confidence_"+str(c)]["TP"] = self.evalDict["overall"]["confidence_"+str(c)]["TP"] + 1
                 self.evalDict[mapped_gt_class]["confidence_"+str(c)]["TP"] = (self.evalDict[mapped_gt_class]["confidence_"+str(c)])["TP"] + 1
@@ -305,10 +306,10 @@ class APatIOU(DatasetEvaluator):
               # If we have already found this groundtuth
               else:
                 self.evalDict["overall"]["confidence_"+str(c)]["FP"] = self.evalDict["overall"]["confidence_"+str(c)]["FP"] + 1
-                self.evalDict[mapped_gt_class]["confidence_"+str(c)]["FP"] = (self.evalDict[mapped_gt_class]["confidence_"+str(c)])["FP"] + 
+                self.evalDict[mapped_gt_class]["confidence_"+str(c)]["FP"] = (self.evalDict[mapped_gt_class]["confidence_"+str(c)])["FP"] + 1
                 
 
-  def CalculateInterpolatedPrecision(precRec):
+  def CalculateInterpolatedPrecision(self,precRec):
     precRec = precRec.copy()
 
     # Iterate over all classes / the ``overall'' class / the ``mean'' class
@@ -360,7 +361,7 @@ class APatIOU(DatasetEvaluator):
           self.evalDict["mean"][confidence_level]["recall"]    = prec_recall_dict["recall"] + self.evalDict["mean"][confidence_level]["recall"]
           self.evalDict["mean"][confidence_level]["precision"] = prec_recall_dict["precision"] + self.evalDict["mean"][confidence_level]["precision"]
 
-    self.evalDict = CalculateInterpolatedPrecision(self.evalDict)
+    self.evalDict = self.CalculateInterpolatedPrecision(self.evalDict)
     return self.evalDict
 
 
@@ -492,6 +493,8 @@ class MyEvaluator():
       val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
     elif(self.dataset_used == "full"):
       val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
+    elif(self.dataset_used == "comparison"):
+      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.comparison_test_mapper)
     else:
       raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!"+self.dataset_used)
 
@@ -604,6 +607,8 @@ class MyEvaluator():
       val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
     elif(self.dataset_used == "full"):
       val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
+    elif(self.dataset_used == "comparison"):
+      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.comparison_test_mapper)
     else:
       raise ValueError("Evaluate AP: Dataset inputted doesn't exist!"+self.dataset_used)
 
@@ -633,6 +638,8 @@ class MyEvaluator():
       val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.large_test_mapper)
     elif(self.dataset_used == "full"):
       val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.full_test_mapper)
+    elif(self.dataset_used == "comparison"):
+      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.comparison_test_mapper)
     else:
       raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!",self.dataset_used)
 
@@ -740,7 +747,7 @@ def GetAP(points):
   # Retun final AP
   return overall_area
 
-def GetAPForClass(interpolated_data,className)#,isPlot=False,isStep=False):
+def GetAPForClass(interpolated_data,className):#,isPlot=False,isStep=False):
   # Get the condince levels for this class
   confidence_dict = interpolated_data[className]
   # Get all the points

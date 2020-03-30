@@ -81,41 +81,48 @@ def train_mapper(dataset_dict,dataset_used):
   image = utils.read_image(dataset_dict["file_name"], format="BGR")
   # fileName = dataset_dict["file_name"]
 
+  
   ## Crop to bounding box ##
-  # Get the bounding box
-  bbox = ((dataset_dict["annotations"])[0])["bbox"]
-  xmin,ymin,xmax,ymax = bbox
-  w = xmax-xmin
-  h = ymax-ymin
+  if(dataset_used != "comparison"):
+    # Get the bounding box
+    bbox = ((dataset_dict["annotations"])[0])["bbox"]
+    xmin,ymin,xmax,ymax = bbox
+    w = xmax-xmin
+    h = ymax-ymin
 
-  # IsCropToBBox = True
-  # if(IsCropToBBox):
-  # Nudge the crop to be slightly outside of the bounding box
-  nudgedXMin = xmin-15
-  nudgedYMin = ymin-15
-  nudgedW = w+50
-  nudgedH = h+50
+    # IsCropToBBox = True
+    # if(IsCropToBBox):
+    # Nudge the crop to be slightly outside of the bounding box
+    nudgedXMin = xmin-15
+    nudgedYMin = ymin-15
+    nudgedW = w+50
+    nudgedH = h+50
 
-  # If the bounding boxes go outside of the image dimensions, fix this
-  imageHeight = image.shape[0]
-  imageWidth  = image.shape[1]
-  if(nudgedXMin < 0): nudgedXMin = 0
-  if(nudgedYMin < 0): nudgedYMin = 0
-  if(nudgedXMin+nudgedW >= imageWidth):  nudgedW = imageWidth-1
-  if(nudgedYMin+nudgedH >= imageHeight): nudgedH = imageHeight-1
+    # If the bounding boxes go outside of the image dimensions, fix this
+    imageHeight = image.shape[0]
+    imageWidth  = image.shape[1]
+    if(nudgedXMin < 0): nudgedXMin = 0
+    if(nudgedYMin < 0): nudgedYMin = 0
+    if(nudgedXMin+nudgedW >= imageWidth):  nudgedW = imageWidth-1
+    if(nudgedYMin+nudgedH >= imageHeight): nudgedH = imageHeight-1
 
-  # Apply the crop
-  cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
-  image = cropT.apply_image(image)
+    # Apply the crop
+    cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
+    image = cropT.apply_image(image)
+    
+    transforms = T.TransformList([cropT])
+  # else:
+    # nudgedH = dataset_dict["height"]
+    # nudgedW = dataset_dict["width"]
 
   # Apply the crop to the bbox as well
   # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
 
-  dataset_dict["height"] = nudgedH
-  dataset_dict["width"]  = nudgedW
+  dataset_dict["height"] = image.shape[0]
+  dataset_dict["width"]  = image.shape[1]
   
   # Add to the list of transforms
-  transforms = T.TransformList([cropT])
+  
   # else:
   #   nudgedH = dataset_dict["height"]
   #   nudgedW = dataset_dict["width"]
@@ -127,28 +134,31 @@ def train_mapper(dataset_dict,dataset_used):
     # thresholdDimension = 500
   # thresholdDimension = 800
   # thresholdDimension = 600
-  thresholdDimension = 400
+  thresholdDimension = 800
+
+  currWidth  = dataset_dict["width"]
+  currHeight = dataset_dict["height"]
 
   # Downscale only at this threshold
-  if(nudgedH > thresholdDimension or nudgedW > thresholdDimension):
+  if(currHeight > thresholdDimension or currWidth > thresholdDimension):
     myNewH = 0
     myNewW = 0
     # Scale the longest dimension to 1333, the shorter to 800
-    if(nudgedH > nudgedW): 
+    if(currHeight > currWidth): 
       myNewH = thresholdDimension
-      ratio = nudgedH/float(myNewH)
-      myNewW = nudgedW/float(ratio)
+      ratio = currHeight/float(myNewH)
+      myNewW = currWidth/float(ratio)
       myNewW = int(round(myNewW))
       # myNewW = 800
     else:
       # myNewH = 800
       myNewW = thresholdDimension
-      ratio = nudgedW/float(myNewW)
-      myNewH = nudgedH/float(ratio)
+      ratio = currWidth/float(myNewW)
+      myNewH = currHeight/float(ratio)
       myNewH = int(round(myNewH))
 
     # Apply the scaling transform
-    scaleT = T.ScaleTransform(h=nudgedH,w=nudgedW,new_h=myNewW,new_w=myNewH,interp="nearest") 
+    scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
     image = scaleT.apply_image(image.copy())
 
     # Apply the scaling to the bbox
@@ -158,8 +168,8 @@ def train_mapper(dataset_dict,dataset_used):
     transforms = transforms + scaleT
 
     # Set the dimensions
-    dataset_dict["height"] = myNewH
-    dataset_dict["width"]  = myNewW
+    dataset_dict["height"] = image.shape[0]
+    dataset_dict["width"]  = image.shape[1]
   
   ## Apply a random flip ##
   image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
@@ -212,6 +222,158 @@ def train_mapper(dataset_dict,dataset_used):
   return dataset_dict
 
 def test_mapper(dataset_dict,dataset_used):
+  # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
+  # Create a copy of the dataset dict
+  dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+
+
+  ##### Image Transformations #####
+  # Read in the image
+  image = utils.read_image(dataset_dict["file_name"], format="BGR")
+  # fileName = dataset_dict["file_name"]
+
+  
+  ## Crop to bounding box ##
+  if(dataset_used != "comparison"):
+    # Get the bounding box
+    bbox = ((dataset_dict["annotations"])[0])["bbox"]
+    xmin,ymin,xmax,ymax = bbox
+    w = xmax-xmin
+    h = ymax-ymin
+
+    # IsCropToBBox = True
+    # if(IsCropToBBox):
+    # Nudge the crop to be slightly outside of the bounding box
+    nudgedXMin = xmin-15
+    nudgedYMin = ymin-15
+    nudgedW = w+50
+    nudgedH = h+50
+
+    # If the bounding boxes go outside of the image dimensions, fix this
+    imageHeight = image.shape[0]
+    imageWidth  = image.shape[1]
+    if(nudgedXMin < 0): nudgedXMin = 0
+    if(nudgedYMin < 0): nudgedYMin = 0
+    if(nudgedXMin+nudgedW >= imageWidth):  nudgedW = imageWidth-1
+    if(nudgedYMin+nudgedH >= imageHeight): nudgedH = imageHeight-1
+
+    # Apply the crop
+    cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
+    image = cropT.apply_image(image)
+    
+    transforms = T.TransformList([cropT])
+  # else:
+    # nudgedH = dataset_dict["height"]
+    # nudgedW = dataset_dict["width"]
+
+  # Apply the crop to the bbox as well
+  # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
+
+  dataset_dict["height"] = image.shape[0]
+  dataset_dict["width"]  = image.shape[1]
+  
+  # Add to the list of transforms
+  
+  # else:
+  #   nudgedH = dataset_dict["height"]
+  #   nudgedW = dataset_dict["width"]
+    
+
+  ## Scale the image size ##
+  # thresholdDimension = 1000
+  # if(dataset_used == "large"):
+    # thresholdDimension = 500
+  # thresholdDimension = 800
+  # thresholdDimension = 600
+  thresholdDimension = 800
+
+  currWidth  = dataset_dict["width"]
+  currHeight = dataset_dict["height"]
+
+  # Downscale only at this threshold
+  if(currHeight > thresholdDimension or currWidth > thresholdDimension):
+    myNewH = 0
+    myNewW = 0
+    # Scale the longest dimension to 1333, the shorter to 800
+    if(currHeight > currWidth): 
+      myNewH = thresholdDimension
+      ratio = currHeight/float(myNewH)
+      myNewW = currWidth/float(ratio)
+      myNewW = int(round(myNewW))
+      # myNewW = 800
+    else:
+      # myNewH = 800
+      myNewW = thresholdDimension
+      ratio = currWidth/float(myNewW)
+      myNewH = currHeight/float(ratio)
+      myNewH = int(round(myNewH))
+
+    # Apply the scaling transform
+    scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+    image = scaleT.apply_image(image.copy())
+
+    # Apply the scaling to the bbox
+    # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
+
+    # Add this to the list of transforms
+    transforms = transforms + scaleT
+
+    # Set the dimensions
+    dataset_dict["height"] = image.shape[0]
+    dataset_dict["width"]  = image.shape[1]
+  
+  ## Apply a random flip ##
+  # image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
+  # transforms = transforms + tfms
+
+  # Apply Other Transforms ##
+  # image, tfms = T.apply_transform_gens([T.RandomBrightness(0.4,1.6),T.RandomContrast(0.4,1.6),T.RandomSaturation(0.5,1.5),T.RandomLighting(1.2)], image)
+  # transforms = transforms + tfms
+
+  ## Apply random affine (actually just a shear) ##
+  # Pass in the image size
+  # PILImage = Image.fromarray(image)
+  # RandAffT = RandomAffineTransform(PILImage.size)
+  # Apply affine to image
+  # image = RandAffT.apply_image(image.copy())
+  # Append to transforms
+  # transforms = transforms + RandAffT
+
+  ##### END Image Transformations #####
+
+  # Keep these in for now I suppose
+  if(image.shape[0] == 0): 
+    raise ValueError("image shape[0] is 0!: ",print(image.shape),dataset_dict["file_name"])
+  if(image.shape[1] == 0): 
+    raise ValueError("image shape[1] is 0!: ",print(image.shape),dataset_dict["file_name"])
+
+  # Set the image in the dictionary
+  dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+
+
+  # Do remainder of dictionary
+  classID = ((dataset_dict["annotations"])[0])["category_id"]
+  dataset_dict["classID"] = classID
+
+  annos = \
+  [
+    utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+    for obj in dataset_dict.pop("annotations")
+    if obj.get("iscrowd", 0) == 0
+  ]
+
+  # transformNames = [transforms.__name__ for x in transforms]
+  # transformNames = ", ".join(transformNames)
+
+  instances = utils.annotations_to_instances(annos, image.shape[:2])
+  dataset_dict["instances"] = utils.filter_empty_instances(instances)
+
+  dataset_dict["transforms"] = transforms
+
+  return dataset_dict
+
+'''
+def test_mapper(dataset_dict,dataset_used):
 
   ## temp ##
   return train_mapper(dataset_dict,dataset_used)
@@ -229,28 +391,34 @@ def test_mapper(dataset_dict,dataset_used):
 
   ## Crop to bounding box ##
   # Get the bounding box
-  bbox = ((dataset_dict["annotations"])[0])["bbox"]
-  xmin,ymin,xmax,ymax = bbox
-  w = xmax-xmin
-  h = ymax-ymin
+  if(dataset_used is not "comparison"):
+    bbox = ((dataset_dict["annotations"])[0])["bbox"]
+    xmin,ymin,xmax,ymax = bbox
+    w = xmax-xmin
+    h = ymax-ymin
 
-  # Nudge the crop to be slightly outside of the bounding box
-  nudgedXMin = xmin-15
-  nudgedYMin = ymin-15
-  nudgedW = w+50
-  nudgedH = h+50
+    # Nudge the crop to be slightly outside of the bounding box
+    nudgedXMin = xmin-15
+    nudgedYMin = ymin-15
+    nudgedW = w+50
+    nudgedH = h+50
 
-  # If the bounding boxes go outside of the image dimensions, fix this
-  imageHeight = image.shape[0]
-  imageWidth  = image.shape[1]
-  if(nudgedXMin < 0): nudgedXMin = 0
-  if(nudgedYMin < 0): nudgedYMin = 0
-  if(nudgedXMin+nudgedW >= imageWidth):  nudgedW = imageWidth-1
-  if(nudgedYMin+nudgedH >= imageHeight): nudgedH = imageHeight-1
+    # If the bounding boxes go outside of the image dimensions, fix this
+    imageHeight = image.shape[0]
+    imageWidth  = image.shape[1]
+    if(nudgedXMin < 0): nudgedXMin = 0
+    if(nudgedYMin < 0): nudgedYMin = 0
+    if(nudgedXMin+nudgedW >= imageWidth):  nudgedW = imageWidth-1
+    if(nudgedYMin+nudgedH >= imageHeight): nudgedH = imageHeight-1
 
-  # Apply the crop
-  cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
-  image = cropT.apply_image(image)
+    # Apply the crop
+    cropT = T.CropTransform(nudgedXMin,nudgedYMin,nudgedW,nudgedH)
+    image = cropT.apply_image(image)
+    
+    transforms = T.TransformList([cropT])
+  else:
+    nudgedH = dataset_dict["height"]
+    nudgedW = dataset_dict["width"]
 
   # Apply the crop to the bbox as well
   
@@ -258,10 +426,9 @@ def test_mapper(dataset_dict,dataset_used):
   dataset_dict["width"]  = nudgedW
   
   # Add to the list of transforms
-  transforms = T.TransformList([cropT])
 
   ## Scale the image size ##
-  thresholdDimension = 1000
+  # thresholdDimension = 1000
   # if(dataset_used == "large"):
     # thresholdDimension = 500
   thresholdDimension = 800
@@ -342,7 +509,7 @@ def test_mapper(dataset_dict,dataset_used):
   dataset_dict["instances"] = utils.filter_empty_instances(instances)
 
   return dataset_dict
-
+'''
 
 def small_train_mapper(dataset_dict):
   return train_mapper(dataset_dict,"small")
@@ -361,3 +528,9 @@ def full_train_mapper(dataset_dict):
 
 def full_test_mapper(dataset_dict):
   return test_mapper(dataset_dict,"full")
+
+def comparison_train_mapper(dataset_dict):
+  return train_mapper(dataset_dict,"comparison")
+
+def comparison_test_mapper(dataset_dict):
+  return test_mapper(dataset_dict,"comparison")
