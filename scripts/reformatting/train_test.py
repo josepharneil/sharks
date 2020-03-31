@@ -46,6 +46,8 @@ import train
 
 print("Imports done")
 
+print("Torch cuda version:",torch.version.cuda)
+
 # Get the datetime for logging purposes
 dateTime = datetime.datetime.now()
 dateTime = str(dateTime)
