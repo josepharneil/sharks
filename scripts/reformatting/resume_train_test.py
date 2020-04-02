@@ -44,6 +44,9 @@ import getters
 import writers
 import train
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 print("Imports done")
 
 # Get the datetime for logging purposes
@@ -99,6 +102,13 @@ parser.add_argument(
   default=0,
   type=int,
   help="Whether to track accuracy or not during training (this is *very* intensive)"
+)
+parser.add_argument(
+  "-b",
+  "--batch-size",
+  default=0,
+  type=int,
+  help="Batch size"
 )
 # parser.add_argument(
 #   "-r",

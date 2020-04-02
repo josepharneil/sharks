@@ -47,6 +47,9 @@ import train
 from detectron2.modeling import build_model
 from detectron2.checkpoint import DetectionCheckpointer
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 print("Imports done")
 
 # Get the datetime for logging purposes
@@ -102,6 +105,13 @@ parser.add_argument(
   default=0,
   type=int,
   help="Whether to track accuracy or not during training (this is *very* intensive)"
+)
+parser.add_argument(
+  "-b",
+  "--batch-size",
+  default=0,
+  type=int,
+  help="Batch size"
 )
 # parser.add_argument(
 #   "-r",
@@ -170,7 +180,8 @@ if(dataset_used == "comparison"):
 
 
 actualJobID = parser.parse_args().jobid
-resumeID = 3380515
+resumeID = 3506123
+print("The resumeID is ",resumeID)
 # print("parser.parse_args().jobid:",parser.parse_args().jobid)
 
 
@@ -222,13 +233,13 @@ else:
   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
   modelOutputFolderName = "retinanet_R_50_FPN_1x"
 
-cfg = config.CreateCfg(parser=parser.parse_args(),
-                dataset_used=dataset_used,
-                numClasses=len(SharkClassDictionary),
-                baseOutputDir=baseOutputDirectory,
-                modelLink=modelLink,
-                modelOutputFolderName=modelOutputFolderName,
-                jobIDOverride=resumeID)
+# cfg = config.CreateCfg(parser=parser.parse_args(),
+#                 dataset_used=dataset_used,
+#                 numClasses=len(SharkClassDictionary),
+#                 baseOutputDir=baseOutputDirectory,
+#                 modelLink=modelLink,
+#                 modelOutputFolderName=modelOutputFolderName,
+#                 jobIDOverride=resumeID)
 
 #-----------------------------------------------------#
 #              Create the Trainer
@@ -236,14 +247,69 @@ cfg = config.CreateCfg(parser=parser.parse_args(),
 # Create and evaluator to be used in training
 # evaluator = evaluate.MyEvaluator(trainer.model,cfg,dataset_used)
 
-if(dataset_used == "small"):
-  trainer = train.SmallSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "large"):
-  trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "full"):
-  trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "comparison"):
-  trainer = train.ComparisonSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+# if(dataset_used == "small"):
+#   trainer = train.SmallSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+# if(dataset_used == "large"):
+#   trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+# if(dataset_used == "full"):
+#   trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+# if(dataset_used == "comparison"):
+#   trainer = train.ComparisonSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+
+
+
+#-----------------------------------------------------#
+#                      Train
+#-----------------------------------------------------#
+# If true, and the last checkpoint exists, resume from it
+# If false, load a model specified by the config
+# temp = cfg.OUTPUT_DIR
+# cfg.OUTPUT_DIR = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515"#parser.parse_args().checkpoint
+# cfg.OUTPUT_DIR = parser.parse_args().checkpoint
+# trainer.resume_or_load(resume=True)
+# cfg.OUTPUT_DIR = temp
+# cfg.MODEL.WEIGHTS = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515/model_0394999.pth"
+# trainer.start_iter = 394999+1
+
+# trainer.resume_or_load(resume=True)
+# print(trainer.checkpointer.save_dir)
+# trainer.train()
+
+# manually load model weights 
+
+
+# cfg = get_cfg()
+# cfg.merge_from_file("/content/drive/My Drive/large_best/cfg.yaml")
+# cfg.MODEL.WEIGHTS = "/content/drive/My Drive/large_best/model_final.pth"
+
+# the folder name
+resume_foldername = "output_"+str(resumeID)
+# base folder + the output folder + resume folder
+resume_path = baseOutputDirectory + modelOutputFolderName + "/" + resume_foldername
+
+# Load the cfg and weights from the files
+cfg = torch.load(resume_path+"/cfg.yaml")
+cfg.MODEL.WEIGHTS = resume_path+"/model_final.pth"
+
+# For older models, these are wrong, so fix it
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.05
+cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.05
+
+# Build the model
+loadedModel = build_model(cfg)
+# Load the model
+DetectionCheckpointer(loadedModel).load(resume_path+"/model_final.pth")
+
+# New Output dir
+cfg.OUTPUT_DIR = resume_path
+
+
+# print(loadedCfg.MODEL.WEIGHTS)
+
+# loadedCfg = torch.load("/content/drive/My Drive/large_best/cfg.yaml")
+# loadedModel = torch.load("/content/drive/My Drive/large_best/model_final.pth")
+# print(loadedCfg.DATASETS.TEST)
+
 
 
 # helpful print/ wrinting function:
@@ -273,56 +339,6 @@ OutputString = "\nDate time: \t"    + dateTime \
 PrintAndWriteToParams(OutputString)
 
 #-----------------------------------------------------#
-#                      Train
-#-----------------------------------------------------#
-# If true, and the last checkpoint exists, resume from it
-# If false, load a model specified by the config
-# temp = cfg.OUTPUT_DIR
-# cfg.OUTPUT_DIR = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515"#parser.parse_args().checkpoint
-# cfg.OUTPUT_DIR = parser.parse_args().checkpoint
-# trainer.resume_or_load(resume=True)
-# cfg.OUTPUT_DIR = temp
-# cfg.MODEL.WEIGHTS = "scratch/outputs/large/retinanet_R_101_FPN_3x/output_3380515/model_0394999.pth"
-# trainer.start_iter = 394999+1
-
-# trainer.resume_or_load(resume=True)
-# print(trainer.checkpointer.save_dir)
-# trainer.train()
-
-# manually load model weights 
-
-
-# cfg = get_cfg()
-# cfg.merge_from_file("/content/drive/My Drive/large_best/cfg.yaml")
-# cfg.MODEL.WEIGHTS = "/content/drive/My Drive/large_best/model_final.pth"
-
-# the folder name
-resume_foldername = "output_"+resumeID
-# base folder + the output folder + resume folder
-resume_path = baseOutputDirectory + modelOutputFolderName + "/" + resume_foldername
-
-# Load the cfg and weights from the files
-loadedCfg = torch.load(resume_path+"/cfg.yaml")
-loadedCfg.MODEL.WEIGHTS = resume_path+"/model_final.pth"
-
-# For older models, these are wrong, so fix it
-loadedCfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.05
-loadedCfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.05
-
-# Build the model
-loadedModel = build_model(loadedCfg)
-# Load the model
-DetectionCheckpointer(loadedModel).load(resume_path+"/model_final.pth")
-
-
-# print(loadedCfg.MODEL.WEIGHTS)
-
-# loadedCfg = torch.load("/content/drive/My Drive/large_best/cfg.yaml")
-# loadedModel = torch.load("/content/drive/My Drive/large_best/model_final.pth")
-# print(loadedCfg.DATASETS.TEST)
-
-
-#-----------------------------------------------------#
 #                      Evaluate
 #-----------------------------------------------------#
 # Load the final model outputted in training
@@ -331,21 +347,21 @@ DetectionCheckpointer(loadedModel).load(resume_path+"/model_final.pth")
 # Attempt to create a predictor
 # This may fail if training fails, in which case we move the slurm to the output folder
 # and raise an error
-try:
-  predictor = DefaultPredictor(cfg)
-except AssertionError:
-  print("Checkpoint not found, model not found")
-  ### Move the Slurm file ###
-  # Get the jobname
-  jobName = str(parser.parse_args().jobid)
-  print("Moving ",jobName)
-  # Create the file name
-  filename = "slurm-"+jobName+".out"
-  # Copy the file
-  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-  # Delete the original 
-  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
-  raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
+# try:
+#   predictor = DefaultPredictor(cfg)
+# except AssertionError:
+#   print("Checkpoint not found, model not found")
+#   ### Move the Slurm file ###
+#   # Get the jobname
+#   jobName = str(parser.parse_args().jobid)
+#   print("Moving ",jobName)
+#   # Create the file name
+#   filename = "slurm-"+jobName+".out"
+#   # Copy the file
+#   shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+#   # Delete the original 
+#   os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
+#   raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
 
 
 # Create an evaluation dictionary which we store as a file at the end of evaluation
@@ -366,14 +382,14 @@ parameterDict["transforms"] = "not implemented"
 evaluationDict["params"] = parameterDict
 
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters)
+myEvaluator = evaluate.MyEvaluator(cfg,loadedModel,dataset_used,myDictGetters)
 
 # coco
 # cocoResults = myEvaluator.EvaluateTestCOCO()
 # evaluationDict["coco"] = cocoResults
 
 # AP
-pathToAPFolder = loadedCfg.OUTPUT_DIR + "/AP_Evaluation"
+pathToAPFolder = cfg.OUTPUT_DIR + "/AP_Evaluation"
 os.makedirs(pathToAPFolder, exist_ok=True)
 
 def EvaluateAPatIOU(IOU):
@@ -388,19 +404,21 @@ def EvaluateAPatIOU(IOU):
   appendString = "Overall AP at IOU "+stringIOU+": " + str(AP_at_XX_For_Class) + "\n"
   PrintAndWriteToParams(appendString,"a+")
 
-EvaluateAPatIOU(0.5)
-EvaluateAPatIOU(0.7)
-EvaluateAPatIOU(0.85)
-EvaluateAPatIOU(9)
+  return AP_at_XX_For_Class
+
+AP_At_50 = EvaluateAPatIOU(0.5)
 
 
 # Do Top K Test Accuracy
 KAccDict = OrderedDict()
-for i in range(1,11,2):
+# for i in range(1,11,2):
+for i in range(1,3,2):
   accResult = myEvaluator.EvaluateTestTopKAccuracy(i)
   k = accResult["k"]
   key = "top_"+str(k)+"_acc"
   KAccDict[key] = accResult
+  if(i == 1):
+    testAccAt1 = str(accResult["accuracy"]) + "%"
 
 evaluationDict["acc"] = KAccDict
 torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
@@ -414,13 +432,22 @@ PrintAndWriteToParams(appendString,"a+")
 
 
 # Do Top K Train Accuracy
-for i in range(1,11,2):
-  myEvaluator.EvaluateTrainTopKAccuracy(i)
+# for i in range(1,11,2):
+for i in range(1,3,2):
+  train_accResult = myEvaluator.EvaluateTrainTopKAccuracy(i)
+  if(i == 1):
+    trainAccAt1 = str(train_accResult["accuracy"]) + "%"
 
 # Append to file
 appendString = "\n________________________________________________________" \
               + "\n"
 PrintAndWriteToParams(appendString,"a+")
+
+
+appendString = "\nRESULT: ap50, train, test : " + str(round(AP_At_50,3)) + ", " + trainAccAt1 + ", " + testAccAt1 + "\n"
+PrintAndWriteToParams(appendString,"a+")
+
+PrintAndWriteToParams("Finished evaluation!\n","a+")
 
 
 #-----------------------------------------------------#

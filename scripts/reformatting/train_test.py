@@ -44,6 +44,9 @@ import getters
 import writers
 import train
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 print("Imports done")
 
 print("Torch cuda version:",torch.version.cuda)
@@ -223,12 +226,12 @@ elif(parser.parse_args().model == 2):
   modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
   modelOutputFolderName = "retinanet_R_101_FPN_3x"
 elif(parser.parse_args().model == 3):
-  # modelLink = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"
-  # modelOutputFolderName = "faster_rcnn_X_101_32x8d_FPN_3x"
+  modelLink = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"
+  modelOutputFolderName = "faster_rcnn_X_101_32x8d_FPN_3x"
 
   
-  modelLink = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
-  modelOutputFolderName = "faster_rcnn_R_50_FPN_3x.yaml"
+  # modelLink = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+  # modelOutputFolderName = "faster_rcnn_R_50_FPN_3x.yaml"
 
   # modelLink = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
   # modelOutputFolderName = "faster_rcnn_R_101_FPN_3x.yaml"
@@ -384,7 +387,9 @@ def EvaluateAPatIOU(IOU):
   appendString = "Overall AP at IOU "+stringIOU+": " + str(AP_at_XX_For_Class) + "\n"
   PrintAndWriteToParams(appendString,"a+")
 
-EvaluateAPatIOU(0.5)
+  return AP_at_XX_For_Class
+
+AP_At_50 = EvaluateAPatIOU(0.5)
 
 
 # Do Top K Test Accuracy
@@ -394,6 +399,8 @@ for i in range(1,11,2):
   k = accResult["k"]
   key = "top_"+str(k)+"_acc"
   KAccDict[key] = accResult
+  if(i == 1):
+    testAccAt1 = str(accResult["accuracy"]) + "%"
 
 evaluationDict["acc"] = KAccDict
 torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
@@ -408,12 +415,20 @@ PrintAndWriteToParams(appendString,"a+")
 
 # Do Top K Train Accuracy
 for i in range(1,11,2):
-  myEvaluator.EvaluateTrainTopKAccuracy(i)
+  train_accResult = myEvaluator.EvaluateTrainTopKAccuracy(i)
+  if(i == 1):
+    trainAccAt1 = str(train_accResult["accuracy"]) + "%"
 
 # Append to file
 appendString = "\n________________________________________________________" \
               + "\n"
 PrintAndWriteToParams(appendString,"a+")
+
+
+appendString = "\nRESULT: ap50, train, test : " + str(round(AP_At_50,3)) + ", " + trainAccAt1 + ", " + testAccAt1 + "\n"
+PrintAndWriteToParams(appendString,"a+")
+
+PrintAndWriteToParams("Finished evaluation!\n","a+")
 
 
 #-----------------------------------------------------#

@@ -342,7 +342,7 @@ class APatIOU(DatasetEvaluator):
   def evaluate(self):
     # for each confidence level
     for overall_or_class,confidence_dict in self.evalDict.items():
-      print(overall_or_class,confidence_dict)
+      # print(overall_or_class,confidence_dict)
       for k,v in confidence_dict.items():
         # print(k,v)
         TP,FP,NumGT = v["TP"],v["FP"],v["NumGT"]
