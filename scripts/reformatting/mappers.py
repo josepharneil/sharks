@@ -21,10 +21,10 @@ def apply_affine(affMat,x,y):
   return newX,newY
 
 class RandomAffineTransform(Transform):
-  def __init__(self, imageSize, angle=0, translate=(0,0), scale=0.9):
+  def __init__(self, imageSize, shear=(0,0), angle=0, translate=(0,0), scale=0.9):
     center = (imageSize[0] * 0.5 + 0.5, imageSize[1] * 0.5 + 0.5)
-    shear = (np.random.uniform(-8,8),np.random.uniform(-8,8))
-    angle = np.random.uniform(-30,30)
+    # shear = (np.random.uniform(-8,8),np.random.uniform(-8,8))
+    # angle = np.random.uniform(-30,30)
 
     self.invAffMat = _get_inverse_affine_matrix(center=center, angle=angle, translate=translate, scale=scale, shear=shear)
 
@@ -122,10 +122,10 @@ class My_Mapper():
       transforms = T.TransformList([cropT])
     # Comparison has bbox the size of the image, so dont bother cropping
     else:
+      # scaled between 0.5 and 1; shifted up to 0.5 in each dimension
+      # randomExtant = T.RandomExtent( (0.5,1),(0.5,0.5) )
+      # transforms = T.TransformList([randomExtant])
       transforms = T.TransformList([])
-    # else:
-      # nudgedH = dataset_dict["height"]
-      # nudgedW = dataset_dict["width"]
 
     # Apply the crop to the bbox as well
     # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
@@ -203,13 +203,35 @@ class My_Mapper():
     transforms = transforms + tfms
 
     # Apply Other Transforms ##
-    image, tfms = T.apply_transform_gens([T.RandomBrightness(0.4,1.6),T.RandomContrast(0.4,1.6),T.RandomSaturation(0.5,1.5),T.RandomLighting(1.2)], image)
+    # Standard random image mods
+    if(self.dataset_used != "comparison"):
+      image, tfms = T.apply_transform_gens([T.RandomBrightness(0.4,1.6),T.RandomContrast(0.4,1.6),T.RandomSaturation(0.5,1.5),T.RandomLighting(1.2)], image)
+    # More extreme for comparison set
+    else:
+      image, tfms = T.apply_transform_gens([T.RandomBrightness(0.2,1.8),T.RandomContrast(0.2,1.8),T.RandomSaturation(0.3,1.7),T.RandomLighting(1.5)], image)
     transforms = transforms + tfms
 
     ## Apply random affine (actually just a shear) ##
     # Pass in the image size
     PILImage = Image.fromarray(image)
-    RandAffT = RandomAffineTransform(PILImage.size)
+
+    # Standard affine
+    if(self.dataset_used != "comparison"):
+      shear_range = 8
+      angle_range = 30
+      # rand_shear = (np.random.uniform(-shear_range,shear_range),np.random.uniform(-8,8))
+      # rand_angle = np.random.uniform(-30,30)
+    # More extreme random affine for comparison
+    else:
+      shear_range = 50
+      angle_range = 30
+      # rand_shear = (np.random.uniform(-30,30),np.random.uniform(-30,30))
+      # rand_angle = np.random.uniform(-70,70)
+
+    rand_shear = (np.random.uniform(-shear_range,shear_range),np.random.uniform(-shear_range,shear_range))
+    rand_angle = np.random.uniform(-angle_range,angle_range)
+
+    RandAffT = RandomAffineTransform(PILImage.size,shear=rand_shear,angle=rand_angle)
     # Apply affine to image
     image = RandAffT.apply_image(image.copy())
     # Append to transforms
