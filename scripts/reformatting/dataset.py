@@ -228,6 +228,9 @@ def constructSharkDicts(dataDirectory):
     if(dataset_used == "full"):
       ymin, xmin, ymax, xmax = values["box_ymin_xmin_ymax_xmax"]
 
+    if(dataset_used == "comparison"):
+      ymin, xmin, ymax, xmax = values["box_ymin_xmin_ymax_xmax"]
+
     # Check image exists (might not because of how I'm handling dataset)
     if(not os.path.isfile(filename)): continue
 
@@ -241,26 +244,26 @@ def constructSharkDicts(dataDirectory):
     classID = SharkClassDictionary[sharkID]
 
     # Construct an annotation object (only one in this case)
-    if(dataset_used is not "comparison"):
-      obj = \
-      {
-          "bbox": [xmin,ymin,xmax,ymax],
-          "bbox_mode": BoxMode.XYXY_ABS,
-          # "sementation": [poly],
-          "category_id": classID, #this needs to be an INTEGER ID for the shark's category, so we have created a mapping from sharkIDs to classIDs
-          "iscrowd": 0
-      }
-      objs.append(obj)
-    else:
-      obj = \
-      {
-          # "bbox": [xmin,ymin,xmax,ymax],
-          # "bbox_mode": BoxMode.XYXY_ABS,
-          # "sementation": [poly],
-          "category_id": classID, #this needs to be an INTEGER ID for the shark's category, so we have created a mapping from sharkIDs to classIDs
-          "iscrowd": 0
-      }
-      objs.append(obj)
+    # if(dataset_used is not "comparison"):
+    obj = \
+    {
+        "bbox": [xmin,ymin,xmax,ymax],
+        "bbox_mode": BoxMode.XYXY_ABS,
+        # "sementation": [poly],
+        "category_id": classID, #this needs to be an INTEGER ID for the shark's category, so we have created a mapping from sharkIDs to classIDs
+        "iscrowd": 0
+    }
+    objs.append(obj)
+    # else:
+    #   obj = \
+    #   {
+    #       # "bbox": [xmin,ymin,xmax,ymax],
+    #       # "bbox_mode": BoxMode.XYXY_ABS,
+    #       # "sementation": [poly],
+    #       "category_id": classID, #this needs to be an INTEGER ID for the shark's category, so we have created a mapping from sharkIDs to classIDs
+    #       "iscrowd": 0
+    #   }
+    #   objs.append(obj)
 
     # Populate record
     record["file_name"] = filename
