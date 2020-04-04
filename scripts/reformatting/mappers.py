@@ -91,6 +91,7 @@ class My_Mapper():
 
     
     ## Crop to bounding box ##
+    # Crop for all but comparison
     if(self.dataset_used != "comparison"):
       # Get the bounding box
       bbox = ((dataset_dict["annotations"])[0])["bbox"]
@@ -119,6 +120,7 @@ class My_Mapper():
       image = cropT.apply_image(image)
       
       transforms = T.TransformList([cropT])
+    # Comparison has bbox the size of the image, so dont bother cropping
     else:
       transforms = T.TransformList([])
     # else:
@@ -230,24 +232,24 @@ class My_Mapper():
     dataset_dict["classID"] = classID
 
     # bboxes
-    if(self.dataset_used != "comparison"):
-      annos = \
-      [
-        utils.transform_instance_annotations(obj, transforms, image.shape[:2])
-        for obj in dataset_dict.pop("annotations")
-        if obj.get("iscrowd", 0) == 0
-      ]
+    # if(self.dataset_used != "comparison"):
+    annos = \
+    [
+      utils.transform_instance_annotations(obj, transforms, image.shape[:2])
+      for obj in dataset_dict.pop("annotations")
+      if obj.get("iscrowd", 0) == 0
+    ]
 
-      # transformNames = [transforms.__name__ for x in transforms]
-      # transformNames = ", ".join(transformNames)
+    # transformNames = [transforms.__name__ for x in transforms]
+    # transformNames = ", ".join(transformNames)
 
-      instances = utils.annotations_to_instances(annos, image.shape[:2])
-      dataset_dict["instances"] = utils.filter_empty_instances(instances)
-    # no bboxes
-    else:
-      instances = Instances(  (dataset_dict["height"],dataset_dict["width"])  )
-      instances.gt_classes = torch.tensor([dataset_dict["classID"]])
-      dataset_dict["instances"] = instances
+    instances = utils.annotations_to_instances(annos, image.shape[:2])
+    dataset_dict["instances"] = utils.filter_empty_instances(instances)
+    # # no bboxes
+    # else:
+    #   instances = Instances(  (dataset_dict["height"],dataset_dict["width"])  )
+    #   instances.gt_classes = torch.tensor([dataset_dict["classID"]])
+    #   dataset_dict["instances"] = instances
 
     dataset_dict["transforms"] = transforms
 
@@ -303,7 +305,10 @@ class My_Mapper():
     # else:
       # nudgedH = dataset_dict["height"]
       # nudgedW = dataset_dict["width"]
+    else:
+      transforms = T.TransformList([])
 
+      
     # Apply the crop to the bbox as well
     # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
 
