@@ -255,7 +255,7 @@ class My_Trainer(DefaultTrain.MyDefaultTrainer):
           cfg.TEST.EVAL_PERIOD,
           self.model,
           # Build a new data loader to not affect training
-          self.build_train_loader(cfg),
+          self.build_train_loader(cfg,self.mapper_object),
           cfg.TEST.PRECISE_BN.NUM_ITER,
       )
       if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)
