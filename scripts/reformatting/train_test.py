@@ -59,79 +59,35 @@ dateTime = str(dateTime)
 #-----------------------------------------------------#
 #                      Parsing
 #-----------------------------------------------------#
-parser = argparse.ArgumentParser(
-    description="Train over small shark set",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-)
-parser.add_argument(
-  "-lr",
-  "--learning-rate",
-  default=-1,
-  type=float,
-  help="Base learning rate used by the model"
-)
-parser.add_argument(
-  "-m",
-  "--model",
-  default=-1,
-  type=int,
-  help="Model used"
-)
-parser.add_argument(
-  "-i",
-  "--max-iter",
-  default=-1,
-  type=int,
-  help="Max number of iterations in training"
-)
-parser.add_argument(
-  "-id",
-  "--jobid",
-  default=-1,
-  type=int,
-  help="The Slurm JOB ID - Not set by the user"
-)
-parser.add_argument(
-  "-d",
-  "--dataset",
-  default="s",
-  type=str,
-  help="The dataset being used"
-)
-parser.add_argument(
-  "-a",
-  "--accuracy",
-  default=0,
-  type=int,
-  help="Whether to track accuracy or not during training (this is *very* intensive)"
-)
-parser.add_argument(
-  "-r",
-  "--resume",
-  default=-1,
-  type=int,
-  help="JobID to resume from"
-)
-parser.add_argument(
-  "-b",
-  "--batch-size",
-  default=0,
-  type=int,
-  help="Batch size"
-)
+parser = argparse.ArgumentParser(description="Train over small shark set",formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+
+parser.add_argument("-lr","--learning-rate",default=-1,type=float,help="Base learning rate used by the model")
+parser.add_argument("-m","--model",default=-1,type=int,help="Model used")
+parser.add_argument("-i","--max-iter",default=-1,type=int,help="Max number of iterations in training")
+parser.add_argument("-id","--jobid",default=-1,type=int,help="The Slurm JOB ID - Not set by the user")
+parser.add_argument("-d","--dataset",default=2,type=int,help="The dataset being used")
+parser.add_argument("-a","--accuracy",default=0,type=int,help="Whether to track accuracy or not during training (this is *very* intensive)")
+parser.add_argument("-r","--resume",default=-1,type=int,help="JobID to resume from")
+parser.add_argument("-b","--batch-size",default=0,type=int,help="Batch size")
+parser.add_argument("-t","--threshold",default=800,type=int,help="Image thresholder")
+parser.add_argument("-tt","--test-time",default=1,type=int,help="Test-time or not")
 
 
 dataset_used = ""
-if(parser.parse_args().dataset == "s"):
+# if(parser.parse_args().dataset == "s"):
+if(parser.parse_args().dataset == 0):
   dataset_used = "small"
   print("Dataset being used is the small dataset")
-elif(parser.parse_args().dataset == "l"):
+# elif(parser.parse_args().dataset == "l"):
+elif(parser.parse_args().dataset == 1):
   dataset_used = "large"
   print("Dataset being used is the large dataset")
-elif(parser.parse_args().dataset == "f"):
+# elif(parser.parse_args().dataset == "f"):
+elif(parser.parse_args().dataset == 2):
   dataset_used = "full"
   print("Dataset being used is the full dataset")
-elif(parser.parse_args().dataset == "c"):
+# elif(parser.parse_args().dataset == "c"):
+elif(parser.parse_args().dataset == 3):
   dataset_used = "comparison"
   print("Dataset being used is the comparison dataset")
 else:
@@ -228,22 +184,16 @@ elif(parser.parse_args().model == 2):
 elif(parser.parse_args().model == 3):
   modelLink = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"
   modelOutputFolderName = "faster_rcnn_X_101_32x8d_FPN_3x"
-
-  
-  # modelLink = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
-  # modelOutputFolderName = "faster_rcnn_R_50_FPN_3x.yaml"
-
-  # modelLink = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
-  # modelOutputFolderName = "faster_rcnn_R_101_FPN_3x.yaml"
-  
-  # modelLink = "COCO-Detection/faster_rcnn_R_50_C4_1x.yaml"
-  # modelOutputFolderName = "faster_rcnn_R_50_C4_1x"
 elif(parser.parse_args().model == 4):
-  modelLink = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
-  modelOutputFolderName = "mask_rcnn_R_50_FPN_3x"
+  modelLink = "VGG19_BN"
+  modelOutputFolderName = "VGG19_BN"
+elif(parser.parse_args().model == 5):
+  modelLink = "YOLOV3"
+  modelOutputFolderName = "YOLOV3"
 else:
-  modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
-  modelOutputFolderName = "retinanet_R_50_FPN_1x"
+  raise ValueError("No such model index:", parser.parse_args().model)
+  # modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
+  # modelOutputFolderName = "retinanet_R_50_FPN_1x"
 
 cfg = config.CreateCfg(parser=parser.parse_args(),
                 dataset_used=dataset_used,
@@ -260,15 +210,24 @@ cfg = config.CreateCfg(parser=parser.parse_args(),
 # Create and evaluator to be used in training
 # evaluator = evaluate.MyEvaluator(trainer.model,cfg,dataset_used)
 
-if(dataset_used == "small"):
-  trainer = train.SmallSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "large"):
-  trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "full"):
-  trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
-if(dataset_used == "comparison"):
-  trainer = train.ComparisonSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used)
+# if(dataset_used == "small"):
+#   trainer = train.SmallSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping)
+# if(dataset_used == "large"):
+#   trainer = train.LargeSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping)
+# if(dataset_used == "full"):
+#   trainer = train.FullSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping)
+# if(dataset_used == "comparison"):
+#   trainer = train.ComparisonSetTrainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping)
 
+threshold_dimension = parser.parse_args().threshold
+is_test_time_mapping = True if (parser.parse_args().test_time == 1) else False
+if(is_test_time_mapping): 
+  print("is test time mapping")
+else:
+  print("is not test time mapping")
+
+
+trainer = train.My_Trainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping,modelLink)
 
 # helpful print/ wrinting function:
 def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
@@ -327,21 +286,22 @@ cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
 # Attempt to create a predictor
 # This may fail if training fails, in which case we move the slurm to the output folder
 # and raise an error
-try:
-  predictor = DefaultPredictor(cfg)
-except AssertionError:
-  print("Checkpoint not found, model not found")
-  ### Move the Slurm file ###
-  # Get the jobname
-  jobName = str(parser.parse_args().jobid)
-  print("Moving ",jobName)
-  # Create the file name
-  filename = "slurm-"+jobName+".out"
-  # Copy the file
-  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-  # Delete the original 
-  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
-  raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
+if(modelLink not in ["VGG19_BN","YOLOV3"] ):
+  try:
+    predictor = DefaultPredictor(cfg)
+  except AssertionError:
+    print("Checkpoint not found, model not found")
+    ### Move the Slurm file ###
+    # Get the jobname
+    jobName = str(parser.parse_args().jobid)
+    print("Moving ",jobName)
+    # Create the file name
+    filename = "slurm-"+jobName+".out"
+    # Copy the file
+    shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+    # Delete the original 
+    os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
+    raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
 
 
 # Create an evaluation dictionary which we store as a file at the end of evaluation
@@ -362,7 +322,7 @@ parameterDict["transforms"] = "not implemented"
 evaluationDict["params"] = parameterDict  
 
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters)
+myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping)
 
 # coco
 # cocoValResults = myEvaluator.EvaluateTestCOCO()
@@ -389,7 +349,8 @@ def EvaluateAPatIOU(IOU):
 
   return AP_at_XX_For_Class
 
-AP_At_50 = EvaluateAPatIOU(0.5)
+if(not modelLink == "VGG19_BN"):
+  AP_At_50 = EvaluateAPatIOU(0.5)
 
 
 # Do Top K Test Accuracy
@@ -424,9 +385,12 @@ appendString = "\n________________________________________________________" \
               + "\n"
 PrintAndWriteToParams(appendString,"a+")
 
-
-appendString = "\nRESULT: ap50, train, test : " + str(round(AP_At_50,3)) + ", " + trainAccAt1 + ", " + testAccAt1 + "\n"
-PrintAndWriteToParams(appendString,"a+")
+if(not modelLink == "VGG19_BN"):
+  appendString = "\nRESULT: ap50, train, test : " + str(round(AP_At_50,3)) + ", " + trainAccAt1 + ", " + testAccAt1 + "\n"
+  PrintAndWriteToParams(appendString,"a+")
+else:
+  appendString = "\nRESULT: train, test : " + trainAccAt1 + ", " + testAccAt1 + "\n"
+  PrintAndWriteToParams(appendString,"a+")
 
 PrintAndWriteToParams("Finished evaluation!\n","a+")
 

@@ -83,19 +83,24 @@ def my_build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Opti
 
 
 
-class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
-  def __init__(self,cfg,parser,getter,dataset_used):
-    super().__init__(cfg,parser)
+# class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
+class My_Trainer(DefaultTrain.MyDefaultTrainer):
+  def __init__(self,cfg,parser,getter,dataset_used,threshold_dimension,is_test_time_mapping,modelLink):
     self.getter = getter
     self.dataset_used = dataset_used
+    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink)
+    super().__init__(cfg,parser,self.mapper_object)
 
-  @classmethod
-  def build_test_loader(cls, cfg, dataset_name):
-    return build_detection_test_loader(cfg, dataset_name, mapper=mappers.small_test_mapper)
+  # @classmethod
+  # def build_test_loader(cls, cfg, dataset_name):
+    # return build_detection_test_loader(cfg, dataset_name, mapper=mapper_object.test_mapper)
+    # return build_detection_test_loader(cfg, dataset_name, mapper=mapper_object.test_mapper)
+    # return build_detection_train_loader(cfg, mapper=self.mapper_object.test_mapper)
 
-  @classmethod
-  def build_train_loader(cls, cfg):
-    return build_detection_train_loader(cfg, mapper=mappers.small_train_mapper)
+  # @classmethod
+  # def build_train_loader(cls, cfg):
+    # return build_detection_train_loader(cfg, mapper=mapper_object.train_mapper)
+    # return build_detection_train_loader(cfg, mapper=self.mapper_object.train_mapper)
 
   # @classmethod
   def build_writers(self):
@@ -123,7 +128,8 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
     # Assume the default print/log frequency.
     return [
         writers.JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-        writers.TensorboardAndLogWriter(self.cfg,"small",self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard"),
+        # writers.TensorboardAndLogWriter(self.cfg,"small",self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard"),
+        writers.TensorboardAndLogWriter(self.cfg,self.dataset_used,self.max_iter,self.cfg.OUTPUT_DIR+"/tensorboard"),
     ]
 
   @classmethod
@@ -146,7 +152,7 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
       )
 
   @classmethod
-  def test(cls, cfg, model, getter, dataset_used, evaluators=None):
+  def test(cls, cfg, model, getter, dataset_used, mapper_object, evaluators=None):
       """
       Args:
           cfg (CfgNode):
@@ -170,7 +176,7 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
       for idx, dataset_name in enumerate(cfg.DATASETS.TEST):
           # if(not isTrackAccuracy):
             # break
-          data_loader = cls.build_test_loader(cfg, dataset_name)
+          data_loader = cls.build_test_loader(cfg, dataset_name,mapper_object)
           # When evaluators are passed in as arguments,
           # implicitly assume that evaluators can be created before data_loader.
           if evaluators is not None:
@@ -265,7 +271,7 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
 
     def test_and_save_results():
       # self._last_eval_results = self.test(self.cfg, self.model, self.isTrackAccuracy, self.getter, self.dataset_used)
-      self._last_eval_results = self.test(self.cfg,self.model,self.getter,self.dataset_used,evaluators=None)
+      self._last_eval_results = self.test(self.cfg,self.model,self.getter,self.dataset_used,self.mapper_object,evaluators=None)
       return self._last_eval_results
 
     # Do evaluation after checkpointer, because then if it fails,
@@ -302,8 +308,6 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
     """
     return my_build_optimizer(cfg, model)
 
-
-
   # @classmethod
   # def build_model(cls, cfg):
   #     """
@@ -321,15 +325,15 @@ class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
 
 
 
-
+'''
 
 class LargeSetTrainer(SmallSetTrainer):
   @classmethod
-  def build_test_loader(cls, cfg, dataset_name):
+  def build_test_loader(cls, cfg, dataset_name, mapper_object):
     return build_detection_test_loader(cfg, dataset_name, mapper=mappers.large_test_mapper)
 
   @classmethod
-  def build_train_loader(cls, cfg):
+  def build_train_loader(cls, cfg, mapper_object):
     return build_detection_train_loader(cfg, mapper=mappers.large_train_mapper)
 
   def build_writers(self):
@@ -437,3 +441,4 @@ class ComparisonSetTrainer(SmallSetTrainer):
     ]
 
 
+'''

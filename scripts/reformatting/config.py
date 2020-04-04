@@ -19,7 +19,8 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg = get_cfg()
 
   # get the pretrained retinanet model
-  cfg.merge_from_file(model_zoo.get_config_file(modelLink))
+  if(modelLink not in ["VGG19_BN","YOLOV3"] ):
+    cfg.merge_from_file(model_zoo.get_config_file(modelLink))
   # cfg.merge_from_file(model_zoo.get(modelLink,trained=False))#?
 
   cfg.MODEL.DEVICE = "cuda"
@@ -35,7 +36,8 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg.DATALOADER.NUM_WORKERS = 2
 
   # locate the pretrained weights
-  cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(modelLink)  # Let training initialize from model zoo
+  if(modelLink not in ["VGG19_BN","YOLOV3"] ):
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(modelLink)  # Let training initialize from model zoo
 
   # number of images per batch
   if(parser.batch_size == 0):
@@ -98,6 +100,10 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   cfg.OUTPUT_DIR = path
 
   # CreateOutputFolder()
+
+  # If we're doing VGG or YOLO, set their name as the meta arch
+  if(modelLink in ["VGG19_BN","YOLOV3"] ):
+    cfg.MODEL.META_ARCHITECTURE = modelLink
 
   # Used in evaluation
   # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")

@@ -81,8 +81,11 @@ class TopKAccuracy(DatasetEvaluator):
       scores = scores.cpu()
       scores = scores.numpy()
 
-      bboxes = instances.get("pred_boxes")
-      bboxes = [box.cpu().numpy() for box in bboxes]
+      try:
+        bboxes = instances.get("pred_boxes")
+        bboxes = [box.cpu().numpy() for box in bboxes]
+      except:
+        bboxes = [-1 for s in scores]
       
       # If there are no predicted scores for his input, skip iteration of the loop
       if(len(scores) == 0): continue
@@ -471,39 +474,78 @@ def inference_on_dataset(model, data_loader, evaluator): # modified version of i
 
 
 class MyEvaluator():
-  def __init__(self,cfg,model,dataset_used,getter):
+  def __init__(self,cfg,model,dataset_used,getter,threshold_dimension,is_test_time_mapping):
     self.cfg = cfg
     self.dataset_used = dataset_used
     self.getter = getter
     self.model = model
+    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping)
 
-  def EvaluateTopKAccuracy(self,testOrTrain,numK,isReturn=False):
+  
+  def BaseEvaluate(self,testOrTrain,evaluator_object):
     # Decide if we're evaluating test or train set
     if(testOrTrain == "test"):
       datasetName = "shark_val"
     elif(testOrTrain == "train"):
       datasetName = "shark_train"
     else:
-      raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!"+testOrTrain)
+      raise ValueError("BaseEvaluate: Dataset inputted doesn't exist!"+testOrTrain)
 
-    # Set up the val_loader with the appropriate mapper
-    if(self.dataset_used == "small"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.small_test_mapper)
-    elif(self.dataset_used == "large"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
-    elif(self.dataset_used == "full"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
-    elif(self.dataset_used == "comparison"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.comparison_test_mapper)
-    else:
-      raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!"+self.dataset_used)
+    val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=self.mapper_object.test_mapper)
 
+    # # Set up the val_loader with the appropriate mapper
+    # if(self.dataset_used == "small"):
+    #   # val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.small_test_mapper)
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=my_mapper)
+    # elif(self.dataset_used == "large"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=my_mapper)
+    #   # val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
+    # elif(self.dataset_used == "extra"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=my_mapper)
+    #   # val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
+    # else:
+    #   raise ValueError("BaseEvaluate: Dataset inputted doesn't exist!"+self.dataset_used)
+
+    # Note to self: self.model used to be trainer.model
+    evaluation_results = inference_on_dataset(self.model, val_loader, evaluator_object)
+
+    return evaluation_results
+
+
+
+  def EvaluateTopKAccuracy(self,testOrTrain,numK,isReturn=False):
     # Create evaluator object
     topKEvaluator = TopKAccuracy(getter=self.getter,dataset_used=self.dataset_used,k=numK)
+    
     # Get the accuracy results
-    # val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
-    # Note to self: self.model used to be trainer.model
-    accuracy_results = inference_on_dataset(self.model, val_loader, topKEvaluator)
+    accuracy_results = self.BaseEvaluate(testOrTrain,topKEvaluator)
+
+    # # Decide if we're evaluating test or train set
+    # if(testOrTrain == "test"):
+    #   datasetName = "shark_val"
+    # elif(testOrTrain == "train"):
+    #   datasetName = "shark_train"
+    # else:
+    #   raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!"+testOrTrain)
+
+    # # Set up the val_loader with the appropriate mapper
+    # if(self.dataset_used == "small"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.small_test_mapper)
+    # elif(self.dataset_used == "large"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
+    # elif(self.dataset_used == "full"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
+    # elif(self.dataset_used == "comparison"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.comparison_test_mapper)
+    # else:
+    #   raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!"+self.dataset_used)
+
+    # # Create evaluator object
+    # topKEvaluator = TopKAccuracy(getter=self.getter,dataset_used=self.dataset_used,k=numK)
+    # # Get the accuracy results
+    # # val_loader = build_detection_test_loader(cfg, "shark_val", mapper=test_mapper)
+    # # Note to self: self.model used to be trainer.model
+    # accuracy_results = inference_on_dataset(self.model, val_loader, topKEvaluator)
 
     if(isReturn):
       return accuracy_results["topKAcc"]
@@ -592,33 +634,40 @@ class MyEvaluator():
 
 
   def EvaluateAP(self,test_or_train,IOU):
-    # Decide if we're evaluating test or train set
-    if(test_or_train == "test"):
-      datasetName = "shark_val"
-    elif(test_or_train == "train"):
-      datasetName = "shark_train"
-    else:
-      raise ValueError("Evaluate AP: Dataset inputted doesn't exist!"+test_or_train)
-
-    # Set up the val_loader with the appropriate mapper
-    if(self.dataset_used == "small"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.small_test_mapper)
-    elif(self.dataset_used == "large"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
-    elif(self.dataset_used == "full"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
-    elif(self.dataset_used == "comparison"):
-      val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.comparison_test_mapper)
-    else:
-      raise ValueError("Evaluate AP: Dataset inputted doesn't exist!"+self.dataset_used)
-
     # Create evaluator object
     ap_evaluator = APatIOU(IOU=IOU,getter=self.getter,cfg=self.cfg)
 
     # Get the accuracy results
-    AP_results = inference_on_dataset(self.model, val_loader, ap_evaluator)
+    AP_results = self.BaseEvaluate(test_or_train,ap_evaluator)
 
     return AP_results
+    # # Decide if we're evaluating test or train set
+    # if(test_or_train == "test"):
+    #   datasetName = "shark_val"
+    # elif(test_or_train == "train"):
+    #   datasetName = "shark_train"
+    # else:
+    #   raise ValueError("Evaluate AP: Dataset inputted doesn't exist!"+test_or_train)
+
+    # # Set up the val_loader with the appropriate mapper
+    # if(self.dataset_used == "small"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.small_test_mapper)
+    # elif(self.dataset_used == "large"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.large_test_mapper)
+    # elif(self.dataset_used == "full"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.full_test_mapper)
+    # elif(self.dataset_used == "comparison"):
+    #   val_loader = build_detection_test_loader(self.cfg, datasetName, mapper=mappers.comparison_test_mapper)
+    # else:
+    #   raise ValueError("Evaluate AP: Dataset inputted doesn't exist!"+self.dataset_used)
+
+    # # Create evaluator object
+    # ap_evaluator = APatIOU(IOU=IOU,getter=self.getter,cfg=self.cfg)
+
+    # # Get the accuracy results
+    # AP_results = inference_on_dataset(self.model, val_loader, ap_evaluator)
+
+    # return AP_results
 
   def EvaluateTestAP(self,IOU):
     return self.EvaluateAP("test",IOU)
@@ -628,29 +677,36 @@ class MyEvaluator():
   
 
 
-  def EvaluateCOCO(self,dataset_to_eval):
-    # The loader for the test data (applies various transformations if we so choose)
-    # val_loader = build_detection_test_loader(self.cfg, "shark_val", mapper=test_mapper)
-    # Set up the val_loader with the appropriate mapper
-    if(self.dataset_used == "small"):
-      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.small_test_mapper)
-    elif(self.dataset_used == "large"):
-      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.large_test_mapper)
-    elif(self.dataset_used == "full"):
-      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.full_test_mapper)
-    elif(self.dataset_used == "comparison"):
-      val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.comparison_test_mapper)
-    else:
-      raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!",self.dataset_used)
+  def EvaluateCOCO(self,testOrTrain):
+    # # The loader for the test data (applies various transformations if we so choose)
+    # # val_loader = build_detection_test_loader(self.cfg, "shark_val", mapper=test_mapper)
+    # # Set up the val_loader with the appropriate mapper
+    # if(self.dataset_used == "small"):
+    #   val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.small_test_mapper)
+    # elif(self.dataset_used == "large"):
+    #   val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.large_test_mapper)
+    # elif(self.dataset_used == "full"):
+    #   val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.full_test_mapper)
+    # elif(self.dataset_used == "comparison"):
+    #   val_loader = build_detection_test_loader(self.cfg, dataset_to_eval, mapper=mappers.comparison_test_mapper)
+    # else:
+    #   raise ValueError("Evaluate Top K Accuracy: Dataset inputted doesn't exist!",self.dataset_used)
 
-    print("Evaluating using COCO Metrics: ", dataset_to_eval)
+    # print("Evaluating using COCO Metrics: ", dataset_to_eval)
   
+    # # Get the coco evaluator
+    # cocoEvaluator = COCOEvaluator(dataset_to_eval, self.cfg, False, output_dir=self.cfg.OUTPUT_DIR+"/")
+
+    # # Run the model on the data_loader and evaluate the metrics evaluator
+    # # Also benchmarks the inference speed of model.forward accurately
+    # cocoOutput = inference_on_dataset(self.model, val_loader, cocoEvaluator)
+
     # Get the coco evaluator
-    cocoEvaluator = COCOEvaluator(dataset_to_eval, self.cfg, False, output_dir=self.cfg.OUTPUT_DIR+"/")
+    cocoEvaluator = COCOEvaluator(testOrTrain, self.cfg, False, output_dir=self.cfg.OUTPUT_DIR+"/")
 
     # Run the model on the data_loader and evaluate the metrics evaluator
     # Also benchmarks the inference speed of model.forward accurately
-    cocoOutput = inference_on_dataset(self.model, val_loader, cocoEvaluator)
+    cocoOutput = self.BaseEvaluate(testOrTrain,cocoEvaluator)
 
     # "bbox": ["AP", "AP50", "AP75", "APs", "APm", "APl"]
     cocoBbox = cocoOutput["bbox"]
@@ -687,7 +743,7 @@ class MyEvaluator():
 
     # Create the string we're going to add to the text_file
     appendString = "\n________________________________________________________" \
-                  + "\nEvaluating: "+ dataset_to_eval \
+                  + "\nEvaluating: "+ testOrTrain \
                   + "\nAverage Precision COCO: \t" + str(mAP) \
                   + "\nAverage Precision 50  : \t" + str(mAP50) \
                   + "\nAverage Precision 75  : \t" + str(mAP75) \

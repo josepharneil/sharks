@@ -19,6 +19,7 @@ from detectron2.modeling import build_model
 from detectron2.data import build_detection_train_loader
 from detectron2.data import build_detection_test_loader
 import evaluate
+import MyVGG
 from collections import OrderedDict
 from detectron2.utils.events import get_event_storage
 
@@ -65,18 +66,19 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         trainer.train()
     """
 
-    def __init__(self, cfg, parser):
+    def __init__(self, cfg, parser, mapper_object):
         """
         Args:
             cfg (CfgNode):
         """
+        self.mapper_object = mapper_object
         logger = logging.getLogger("detectron2")
         if not logger.isEnabledFor(logging.INFO):  # setup_logger is not called for d2
             setup_logger()
         # Assume these objects must be constructed in this order.
         model = self.build_model(cfg)
         optimizer = self.build_optimizer(cfg, model)
-        data_loader = self.build_train_loader(cfg)
+        data_loader = self.build_train_loader(cfg,self.mapper_object)
 
         # For training, wrap with DDP. But don't need this for inference.
         if comm.get_world_size() > 1:
@@ -145,7 +147,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
                 cfg.TEST.EVAL_PERIOD,
                 self.model,
                 # Build a new data loader to not affect training
-                self.build_train_loader(cfg),
+                self.build_train_loader(cfg,self.mapper_object),
                 cfg.TEST.PRECISE_BN.NUM_ITER,
             )
             if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)
@@ -160,7 +162,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
             ret.append(hooks.PeriodicCheckpointer(self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD))
 
         def test_and_save_results():
-            self._last_eval_results = self.test(self.cfg, self.model)
+            self._last_eval_results = self.test(self.cfg, self.model, self.mapper_object)
             return self._last_eval_results
 
         # Do evaluation after checkpointer, because then if it fails,
@@ -229,9 +231,16 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         It now calls :func:`detectron2.modeling.build_model`.
         Overwrite it if you'd like a different model.
         """
-        model = build_model(cfg)
-        logger = logging.getLogger(__name__)
-        logger.info("Model:\n{}".format(model))
+        # handle yolo and vgg
+        if(cfg.MODEL.META_ARCHITECTURE == "VGG19_BN"):
+            model = MyVGG.Create_VGG(cfg.MODEL.RETINANET.NUM_CLASSES)
+        elif(cfg.MODEL.META_ARCHITECTURE == "YOLOV3"):
+            raise NotImplementedError
+        else:
+            model = build_model(cfg)
+            logger = logging.getLogger(__name__)
+            logger.info("Model:\n{}".format(model))
+            
         return model
 
 
@@ -257,7 +266,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
 
 
     @classmethod
-    def build_train_loader(cls, cfg):
+    def build_train_loader(cls, cfg, mapper_object):
         """
         Returns:
             iterable
@@ -265,11 +274,11 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         It now calls :func:`detectron2.data.build_detection_train_loader`.
         Overwrite it if you'd like a different data loader.
         """
-        return build_detection_train_loader(cfg)
+        return build_detection_train_loader(cfg, mapper=mapper_object.train_mapper)
 
 
     @classmethod
-    def build_test_loader(cls, cfg, dataset_name):
+    def build_test_loader(cls, cfg, dataset_name, mapper_object):
         """
         Returns:
             iterable
@@ -277,7 +286,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         It now calls :func:`detectron2.data.build_detection_test_loader`.
         Overwrite it if you'd like a different data loader.
         """
-        return build_detection_test_loader(cfg, dataset_name)
+        return build_detection_test_loader(cfg, dataset_name, mapper=mapper_object.test_mapper)
 
 
     @classmethod
@@ -298,7 +307,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
 
 
     @classmethod
-    def test(cls, cfg, model, evaluators=None):
+    def test(cls, cfg, model, mapper_object, evaluators=None):
         """
         Args:
             cfg (CfgNode):
@@ -322,7 +331,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         for idx, dataset_name in enumerate(cfg.DATASETS.TEST):
             # if(not isTrackAccuracy):
               # break
-            data_loader = cls.build_test_loader(cfg, dataset_name)
+            data_loader = cls.build_test_loader(cfg, dataset_name, mapper_object)
             # When evaluators are passed in as arguments,
             # implicitly assume that evaluators can be created before data_loader.
             if evaluators is not None:

@@ -60,79 +60,35 @@ dateTime = str(dateTime)
 #-----------------------------------------------------#
 #                      Parsing
 #-----------------------------------------------------#
-parser = argparse.ArgumentParser(
-    description="Train over small shark set",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-)
-parser.add_argument(
-  "-lr",
-  "--learning-rate",
-  default=-1,
-  type=float,
-  help="Base learning rate used by the model"
-)
-parser.add_argument(
-  "-m",
-  "--model",
-  default=-1,
-  type=int,
-  help="Model used"
-)
-parser.add_argument(
-  "-i",
-  "--max-iter",
-  default=-1,
-  type=int,
-  help="Max number of iterations in training"
-)
-parser.add_argument(
-  "-id",
-  "--jobid",
-  default=-1,
-  type=int,
-  help="The Slurm JOB ID - Not set by the user"
-)
-parser.add_argument(
-  "-d",
-  "--dataset",
-  default="s",
-  type=str,
-  help="The dataset being used"
-)
-parser.add_argument(
-  "-a",
-  "--accuracy",
-  default=0,
-  type=int,
-  help="Whether to track accuracy or not during training (this is *very* intensive)"
-)
-parser.add_argument(
-  "-b",
-  "--batch-size",
-  default=0,
-  type=int,
-  help="Batch size"
-)
-# parser.add_argument(
-#   "-r",
-#   "--resume",
-#   default=None,
-#   type=str,
-#   help="Absolute path of the directory to get the checkpoint to resume from"
-# )
+parser = argparse.ArgumentParser(description="Train over small shark set",formatter_class=argparse.ArgumentDefaultsHelpFormatter,)
+
+parser.add_argument("-lr","--learning-rate",default=-1,type=float,help="Base learning rate used by the model")
+parser.add_argument("-m","--model",default=-1,type=int,help="Model used")
+parser.add_argument("-i","--max-iter",default=-1,type=int,help="Max number of iterations in training")
+parser.add_argument("-id","--jobid",default=-1,type=int,help="The Slurm JOB ID - Not set by the user")
+parser.add_argument("-d","--dataset",default=2,type=int,help="The dataset being used")
+parser.add_argument("-a","--accuracy",default=0,type=int,help="Whether to track accuracy or not during training (this is *very* intensive)")
+parser.add_argument("-r","--resume",default=-1,type=int,help="JobID to resume from")
+parser.add_argument("-b","--batch-size",default=0,type=int,help="Batch size")
+parser.add_argument("-t","--threshold",default=800,type=int,help="Image thresholder")
+parser.add_argument("-tt","--test-time",default=1,type=int,help="Test-time or not")
 
 
 dataset_used = ""
-if(parser.parse_args().dataset == "s"):
+# if(parser.parse_args().dataset == "s"):
+if(parser.parse_args().dataset == 0):
   dataset_used = "small"
   print("Dataset being used is the small dataset")
-elif(parser.parse_args().dataset == "l"):
+# elif(parser.parse_args().dataset == "l"):
+elif(parser.parse_args().dataset == 1):
   dataset_used = "large"
   print("Dataset being used is the large dataset")
-elif(parser.parse_args().dataset == "f"):
+# elif(parser.parse_args().dataset == "f"):
+elif(parser.parse_args().dataset == 2):
   dataset_used = "full"
   print("Dataset being used is the full dataset")
-elif(parser.parse_args().dataset == "c"):
+# elif(parser.parse_args().dataset == "c"):
+elif(parser.parse_args().dataset == 3):
   dataset_used = "comparison"
   print("Dataset being used is the comparison dataset")
 else:
@@ -180,7 +136,7 @@ if(dataset_used == "comparison"):
 
 
 actualJobID = parser.parse_args().jobid
-resumeID = 3506123
+resumeID = parser.parse_args().resume
 print("The resumeID is ",resumeID)
 # print("parser.parse_args().jobid:",parser.parse_args().jobid)
 
@@ -381,8 +337,11 @@ parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
 parameterDict["transforms"] = "not implemented"
 evaluationDict["params"] = parameterDict
 
+threshold_dimension = parser.parse_args().threshold
+is_test_time_mapping = True if (parser.parse_args().test_time == 1) else False
+
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,loadedModel,dataset_used,myDictGetters)
+myEvaluator = evaluate.MyEvaluator(cfg,loadedModel,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping)
 
 # coco
 # cocoResults = myEvaluator.EvaluateTestCOCO()
