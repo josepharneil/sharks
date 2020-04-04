@@ -20,6 +20,7 @@ from detectron2.data import build_detection_train_loader
 from detectron2.data import build_detection_test_loader
 import evaluate
 import MyVGG
+import MyYOLO
 from collections import OrderedDict
 from detectron2.utils.events import get_event_storage
 
@@ -235,7 +236,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         if(cfg.MODEL.META_ARCHITECTURE == "VGG19_BN"):
             model = MyVGG.Create_VGG(cfg.MODEL.RETINANET.NUM_CLASSES)
         elif(cfg.MODEL.META_ARCHITECTURE == "YOLOV3"):
-            raise NotImplementedError
+            model = MyYOLO.Create_YOLO(cfg.MODEL.RETINANET.NUM_CLASSES)
         else:
             model = build_model(cfg)
             logger = logging.getLogger(__name__)
