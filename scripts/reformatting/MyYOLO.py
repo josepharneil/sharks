@@ -6,6 +6,7 @@ import yolo.utils.utils
 from yolo.utils.utils import build_targets, to_cpu, non_max_suppression
 from detectron2.structures import Instances
 from detectron2.structures import Boxes
+import os
 
 class MyYOLO(YoloModels.Darknet):
   def __init__(self,config_path):
@@ -80,6 +81,8 @@ class MyYOLO(YoloModels.Darknet):
       # index_of_bbox_in_image?, label_idx x_center y_center width height
       # The coordinates should be scaled [0, 1]
 
+      # print(images_tensor.shape)
+      # print(targets_tensor.shape)
 
       losses,_ = super().forward(images_tensor,targets_tensor)
 
@@ -99,9 +102,16 @@ class MyYOLO(YoloModels.Darknet):
           im_width  = batched_input["width"]
 
           # Get out predictions
-          pred_boxes   = output[:,:4]
-          pred_scores  = output[:, 4]
-          pred_classes = output[:,-1].int()
+          try:
+            pred_boxes   = output[:,:4]
+            pred_scores  = output[:, 4]
+            pred_classes = output[:,-1].int()
+          except:
+            new_instance = Instances((im_height,im_width))
+            new_instance.pred_boxes   = Boxes(torch.tensor([]))
+            new_instance.scores       = torch.tensor([])
+            new_instance.pred_classes = torch.tensor([]).int()
+            return [{"instances" : new_instance}]
 
           # a "box" is len 4: center_x,center_y,width,height
           # scaled between 0 and 1
@@ -122,18 +132,22 @@ def Create_YOLO(num_classes):
   # Create the model from config
   # Small set
   if(num_classes == 121):
-    config_path = "/sharks/detectron2/yolo/config/" + "small-set-config.cfg"
+    config_path = "/yolo/config/small-set-config.cfg"
   # Comparison set
-  if(num_classes == 85):
-    config_path = "/sharks/detectron2/yolo/config/" + "comparison-set-config.cfg"
+  elif(num_classes == 85):
+    # config_path = os.getcwd()+ "/yolo/config/" + "comparison-set-config.cfg"
+    config_path = "/yolo/config/comparison-set-config.cfg"
   # Large or full
-  if(num_classes == 304):
-    config_path = "/sharks/detectron2/yolo/config/" + "large-full-set-config.cfg"
+  elif(num_classes == 304):
+    # config_path = "/sharks/detectron2/yolo/config/" + "large-full-set-config.cfg"
+    config_path = "/yolo/config/large-full-set-config.cfg"
+  else:
+    raise ValueError("Create_YOLO: Num classes: " + str(num_classes) + " does not exist as a config")
   yolo_model = MyYOLO(config_path)
   # Init weights
   yolo_model.apply(yolo.utils.utils.weights_init_normal)
   # Load pre_trained_weights
-  pretrained_weights = "/sharks/detectron2/yolo/darknet53.conv.74"
+  pretrained_weights = "/mnt/storage/home/ja16475/sharks/detectron2/yolo/darknet53.conv.74"
   yolo_model.load_darknet_weights(pretrained_weights)
   
   # Return model

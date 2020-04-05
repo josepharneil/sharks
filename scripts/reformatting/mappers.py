@@ -151,7 +151,8 @@ class My_Mapper():
     currWidth  = dataset_dict["width"]
     currHeight = dataset_dict["height"]
 
-    if(self.modelLink == "VGG19_BN"):
+    # NOTE: YOLO input size must be multiple of 32
+    if(self.modelLink in ["VGG19_BN","YOLOV3"]):
       vgg_im_size = thresholdDimension
       # Apply the scaling transform
       scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=vgg_im_size,new_w=vgg_im_size,interp="nearest") 
@@ -355,26 +356,11 @@ class My_Mapper():
     currWidth  = dataset_dict["width"]
     currHeight = dataset_dict["height"]
 
-    # Downscale only at this threshold
-    if(currHeight > thresholdDimension or currWidth > thresholdDimension):
-      myNewH = 0
-      myNewW = 0
-      # Scale the longest dimension to 1333, the shorter to 800
-      if(currHeight > currWidth): 
-        myNewH = thresholdDimension
-        ratio = currHeight/float(myNewH)
-        myNewW = currWidth/float(ratio)
-        myNewW = int(round(myNewW))
-        # myNewW = 800
-      else:
-        # myNewH = 800
-        myNewW = thresholdDimension
-        ratio = currWidth/float(myNewW)
-        myNewH = currHeight/float(ratio)
-        myNewH = int(round(myNewH))
-
+    # the way ive done vgg and yolo means they need the same size images
+    if(self.modelLink in ["VGG19_BN","YOLOV3"]):
+      vgg_im_size = thresholdDimension
       # Apply the scaling transform
-      scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+      scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=vgg_im_size,new_w=vgg_im_size,interp="nearest") 
       image = scaleT.apply_image(image.copy())
 
       # Apply the scaling to the bbox
@@ -386,6 +372,39 @@ class My_Mapper():
       # Set the dimensions
       dataset_dict["height"] = image.shape[0]
       dataset_dict["width"]  = image.shape[1]
+    # not vgg or yolo
+    else:# Downscale only at this threshold
+      # Downscale only at this threshold
+      if(currHeight > thresholdDimension or currWidth > thresholdDimension):
+        myNewH = 0
+        myNewW = 0
+        # Scale the longest dimension to 1333, the shorter to 800
+        if(currHeight > currWidth): 
+          myNewH = thresholdDimension
+          ratio = currHeight/float(myNewH)
+          myNewW = currWidth/float(ratio)
+          myNewW = int(round(myNewW))
+          # myNewW = 800
+        else:
+          # myNewH = 800
+          myNewW = thresholdDimension
+          ratio = currWidth/float(myNewW)
+          myNewH = currHeight/float(ratio)
+          myNewH = int(round(myNewH))
+
+        # Apply the scaling transform
+        scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+        image = scaleT.apply_image(image.copy())
+
+        # Apply the scaling to the bbox
+        # THIS IS HANDLED IN annotations_to_instances, so long as this is appended to the list of transforms
+
+        # Add this to the list of transforms
+        transforms = transforms + scaleT
+
+        # Set the dimensions
+        dataset_dict["height"] = image.shape[0]
+        dataset_dict["width"]  = image.shape[1]
     
     ## Apply a random flip ##
     # image, tfms = T.apply_transform_gens([T.RandomFlip()], image)
