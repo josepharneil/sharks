@@ -60,6 +60,13 @@ parser.add_argument(
   type=str,
   help="The dataset being used."
 )
+parser.add_argument(
+  "-s",
+  "--split",
+  default="0",
+  type=int,
+  help="Split"
+)
 
 dataset_used = ""
 if(parser.parse_args().dataset == "s"):
@@ -74,6 +81,9 @@ elif(parser.parse_args().dataset == "f"):
 elif(parser.parse_args().dataset == "c"):
   dataset_used = "comparison"
   print("Dataset being used is the comparison dataset")
+elif(parser.parse_args().dataset == "x"):
+  dataset_used = "split"
+  print("Dataset being used is the split dataset")
 else:
   raise ValueError("Dataset arg provided \""+parser.parse_args().dataset+"\" is invalid")
 
@@ -114,6 +124,13 @@ if(dataset_used == "comparison"):
   trainDirectory      = baseDirectory + "train/"
   valDirectory        = baseDirectory + "val/"
   imageDirectory      = baseDirectory + "images/"
+  sourceJsonDirectory = baseDirectory + "data.json"
+if(dataset_used == "split"):
+  # baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
+  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/splits/"+str(parser.parse_args().split)+"_split/"
+  trainDirectory      = baseDirectory + "train/"
+  valDirectory        = baseDirectory + "val/"
+  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
   sourceJsonDirectory = baseDirectory + "data.json"
 
 """# Dataset
@@ -192,6 +209,8 @@ def constructSharkDicts(dataDirectory):
       if(i % 1000 == 0): print(i)
     if(dataset_used == "comparison"): 
       if(i % 500 == 0): print(i)
+    if(dataset_used == "split"): 
+      if(i % 1000 == 0): print(i)
 
     # if(i == 5000): break
 
@@ -226,6 +245,9 @@ def constructSharkDicts(dataDirectory):
       ymin, xmin, ymax, xmax = values["box_ymin_xmin_ymax_xmax"]
 
     if(dataset_used == "full"):
+      ymin, xmin, ymax, xmax = values["box_ymin_xmin_ymax_xmax"]
+
+    if(dataset_used == "split"):
       ymin, xmin, ymax, xmax = values["box_ymin_xmin_ymax_xmax"]
 
     if(dataset_used == "comparison"):
