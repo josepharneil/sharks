@@ -175,25 +175,33 @@ modelOutputFolderName = ""
 if(parser.parse_args().model == 0):
   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
   modelOutputFolderName = "retinanet_R_50_FPN_1x"
+  meta_arch_override = None
 elif(parser.parse_args().model == 1):
   modelLink = "COCO-Detection/retinanet_R_50_FPN_3x.yaml"
   modelOutputFolderName = "retinanet_R_50_FPN_3x"
+  meta_arch_override = None
 elif(parser.parse_args().model == 2):
   modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
   modelOutputFolderName = "retinanet_R_101_FPN_3x"
+  meta_arch_override = None
 elif(parser.parse_args().model == 3):
   modelLink = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"
   modelOutputFolderName = "faster_rcnn_X_101_32x8d_FPN_3x"
+  meta_arch_override = None
 elif(parser.parse_args().model == 4):
   modelLink = "VGG19_BN"
   modelOutputFolderName = "VGG19_BN"
+  meta_arch_override = None
 elif(parser.parse_args().model == 5):
   modelLink = "YOLOV3"
   modelOutputFolderName = "YOLOV3"
+  meta_arch_override = None
+elif(parser.parse_args().model == 6):
+  modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
+  modelOutputFolderName = "retinanet_R_101_FPN_3x_OHEM"
+  meta_arch_override = "RetinaNetOHEM"
 else:
   raise ValueError("No such model index:", parser.parse_args().model)
-  # modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
-  # modelOutputFolderName = "retinanet_R_50_FPN_1x"
 
 cfg = config.CreateCfg(parser=parser.parse_args(),
                 dataset_used=dataset_used,
@@ -201,7 +209,8 @@ cfg = config.CreateCfg(parser=parser.parse_args(),
                 baseOutputDir=baseOutputDirectory,
                 modelLink=modelLink,
                 modelOutputFolderName=modelOutputFolderName,
-                jobIDOverride=resumeID)
+                jobIDOverride=resumeID,
+                meta_arch_override=meta_arch_override)
                 # if no resumeID is entered/parsed, it will be -1 and do nothing
 
 #-----------------------------------------------------#
@@ -388,6 +397,9 @@ PrintAndWriteToParams(appendString,"a+")
 if(not modelLink == "VGG19_BN"):
   appendString = "\nRESULT: ap50, train, test : " + str(round(AP_At_50,3)) + ", " + trainAccAt1 + ", " + testAccAt1 + "\n"
   PrintAndWriteToParams(appendString,"a+")
+
+  # appendString = "\nLaTeX friendly: ap50, train, test : " + str(round(AP_At_50,3)) + " & " + trainAccAt1 + "\\% & " + testAccAt1 + "\n"
+  # PrintAndWriteToParams(appendString,"a+")
 else:
   appendString = "\nRESULT: train, test : " + trainAccAt1 + ", " + testAccAt1 + "\n"
   PrintAndWriteToParams(appendString,"a+")

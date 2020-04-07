@@ -19,7 +19,7 @@ class MySimpleTrainer(TrainerBase):
     or write your own training loop.
     """
 
-    def __init__(self, model, data_loader, optimizer):
+    def __init__(self, cfg, model, data_loader, optimizer):
         """
         Args:
             model: a torch Module. Takes a data from data_loader and returns a
@@ -41,6 +41,7 @@ class MySimpleTrainer(TrainerBase):
         self.data_loader = data_loader
         self._data_loader_iter = iter(data_loader)
         self.optimizer = optimizer
+        self.cfg = cfg
 
 
     def run_step(self):
@@ -58,6 +59,12 @@ class MySimpleTrainer(TrainerBase):
         """
         If you want to do something with the losses, you can wrap the model.
         """
+        if(self.cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM"):
+            # If its the ohem iter
+            if(self.iter == self.model.ohem_iter):
+                # Start OHEM
+                self.model.isOHEM = True
+                print("OHEM is on")
         loss_dict = self.model(data)
         losses = sum(loss_dict.values())
         self._detect_anomaly(losses, loss_dict)

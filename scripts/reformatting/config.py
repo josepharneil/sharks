@@ -13,7 +13,7 @@ import os
 
 # modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
 
-def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutputFolderName,jobIDOverride=-1):
+def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutputFolderName,jobIDOverride=-1,meta_arch_override=None):
 
   # default configuration
   cfg = get_cfg()
@@ -104,6 +104,9 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   # If we're doing VGG or YOLO, set their name as the meta arch
   if(modelLink in ["VGG19_BN","YOLOV3"] ):
     cfg.MODEL.META_ARCHITECTURE = modelLink
+
+  if(meta_arch_override == "RetinaNetOHEM"):
+    cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM"
 
   # Used in evaluation
   # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
