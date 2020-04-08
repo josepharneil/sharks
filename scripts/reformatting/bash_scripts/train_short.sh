@@ -27,6 +27,8 @@ RESUME=0
 BATCHSIZE=0
 THRESHOLD=800
 TESTTIME=1
+CURRICULUM=0
+CROP=1
 
 OTHER_ARGUMENTS=()
 
@@ -79,6 +81,16 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+        -c|--curriculum)
+        CURRICULUM="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
+        -cr|--crop)
+        CROP="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
     esac
 done
 
@@ -100,6 +112,8 @@ echo BATCHSIZE $BATCHSIZE
 echo ACC $ACC
 echo THRESHOLD $THRESHOLD
 echo TESTTIME $TESTTIME
+echo CURRICULUM $CURRICULUM
+echo CROP $CROP
 echo
 
-python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME
+python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -c $CURRICULUM -cr $CROP

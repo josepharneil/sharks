@@ -1,46 +1,24 @@
-#!/usr/bin/env bash
-#SBATCH --partition gpu
-#SBATCH --time 7-00:00
-#SBATCH --mail-type END
-#SBATCH --account comsm0018
-#SBATCH --mem 64GB
-#SBATCH --gres gpu:1
-
-echo The Job ID is $SLURM_JOBID
-
-# get rid of any modules already loaded
-# module purge
-# load in the module dependencies for this script
-# module load "languages/anaconda3/2019.07-3.6.5-tflow-1.14"
-
-module load CUDA
-
-source activate detectVenv3
+#!/bin/bash
 
 # Default values of arguments
-DATASET=2
 LR=-1
 MODEL=-1
 MAX_ITER=-1
+QUEUE=0
 ACC=0
 RESUME=0
 BATCHSIZE=0
 THRESHOLD=800
 TESTTIME=1
+DATASET=2
 CURRICULUM=0
 CROP=1
-
 OTHER_ARGUMENTS=()
 
 # Loop through arguments and process them
 for arg in "$@"
 do
     case $arg in
-	-d|--dataset)
-        DATASET="$2"
-        shift # Remove argument name from processing
-        shift # Remove argument value from processing
-        ;;
         -lr|--learning-rate)
         LR="$2"
         shift # Remove argument name from processing
@@ -56,9 +34,19 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+	-s|--short)
+        QUEUE=1
+        shift # Remove argument name from processing
+        # shift # Remove argument value from processing
+        ;;
+	-a|--accuracy)
+        ACC=1
+        shift # Remove argument name from processing
+        # shift # Remove argument value from processing
+        ;;
 	-r|--resume)
         RESUME="$2"
-        shift # Remove argument name from processing
+	shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
 	-b|--batch-size)
@@ -76,13 +64,8 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
-        -a|--accuracy)
-        ACC="$2"
-        shift # Remove argument name from processing
-        shift # Remove argument value from processing
-        ;;
-        -c|--curriculum)
-        CURRICULUM="$2"
+	-d|--dataset)
+        DATASET="$2"
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
@@ -94,26 +77,13 @@ do
     esac
 done
 
-
-if [ $RESUME -eq 0 ]
+if [ $QUEUE -eq 0 ]
 then
-  echo Training new model...
+  echo Using the standard queue
+  echo Training dataset $DATASET
+  sbatch bootstrap_long.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -c $CURRICULUM -cr $CROP
 else
-  echo Resuming training from $RESUME
+  echo Using the very short queue
+  echo Training dataset $DATASET
+  sbatch bootstrap_short.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -c $CURRICULUM -cr $CROP
 fi
-
-echo dataset $DATASET
-echo LR $LR
-echo MODEL $MODEL
-echo MAX_ITER $MAX_ITER
-echo ACC $ACC
-echo SLURM_JOBID $SLURM_JOBID
-echo RESUME $RESUME
-echo BATCHSIZE $BATCHSIZE
-echo THRESHOLD $THRESHOLD
-echo CURRICULUM $CURRICULUM
-echo CROP $CROP
-echo
-echo TESTTIME $TESTTIME
-
-python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -c $CURRICULUM -cr $CROP

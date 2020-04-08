@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-#SBATCH --partition gpu
-#SBATCH --time 7-00:00
+#SBATCH --partition gpu_veryshort
+#SBATCH --time 0-01:00
 #SBATCH --mail-type END
 #SBATCH --account comsm0018
 #SBATCH --mem 64GB
@@ -27,7 +27,6 @@ RESUME=0
 BATCHSIZE=0
 THRESHOLD=800
 TESTTIME=1
-CURRICULUM=0
 CROP=1
 
 OTHER_ARGUMENTS=()
@@ -56,6 +55,11 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+        -a|--accuracy)
+        ACC="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
 	-r|--resume)
         RESUME="$2"
         shift # Remove argument name from processing
@@ -73,16 +77,6 @@ do
         ;;
 	-tt|--test-time)
         TESTTIME="$2"
-        shift # Remove argument name from processing
-        shift # Remove argument value from processing
-        ;;
-        -a|--accuracy)
-        ACC="$2"
-        shift # Remove argument name from processing
-        shift # Remove argument value from processing
-        ;;
-        -c|--curriculum)
-        CURRICULUM="$2"
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
@@ -106,14 +100,13 @@ echo dataset $DATASET
 echo LR $LR
 echo MODEL $MODEL
 echo MAX_ITER $MAX_ITER
-echo ACC $ACC
 echo SLURM_JOBID $SLURM_JOBID
 echo RESUME $RESUME
 echo BATCHSIZE $BATCHSIZE
+echo ACC $ACC
 echo THRESHOLD $THRESHOLD
-echo CURRICULUM $CURRICULUM
+echo TESTTIME $TESTTIME
 echo CROP $CROP
 echo
-echo TESTTIME $TESTTIME
 
-python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -c $CURRICULUM -cr $CROP
+python3 bootstrap.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -cr $CROP
