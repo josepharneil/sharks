@@ -202,6 +202,52 @@ class TopKAccuracy(DatasetEvaluator):
 
 
 
+class Bootstrapper(DatasetEvaluator):
+  def __init__(self):
+    self.evalDict = OrderedDict()
+
+  def reset(self):
+    self.evalDict = OrderedDict()
+
+  def process(self, inputs, outputs):
+    for input,output in zip(inputs,outputs):
+      # print("input",input.keys())
+      # {file_name, image_id, height, width, image)
+      # print("Evaluating: ",input["image_id"])
+      
+      # Get the input image
+      # input_image = input["image"]
+      gt_classID = input["classID"]
+      file_name = input["file_name"]
+
+      # print("output",output.keys())
+      # List of instances
+      # instances: Instances(num_instances=4, image_height=492, image_width=581, fields=[pred_boxes: Boxes(tensor([[  2.3871,   5.5744, 581.0000, 465.5241],
+      # Get the instances object from the outputs
+      instances = output["instances"]
+
+      # Instances: num_instances, image_height, image_width, fields
+      pred_classes = instances.get("pred_classes")      #tensor
+      pred_boxes   = instances.get("pred_boxes").tensor #tensor  XYXY_ABS??
+      pred_scores  = instances.get("scores")            #tensor
+
+      # score is by default 0
+      score = 0
+      # if the gt class is predicted, set the score to its confidence (else it remains 0)
+      for pred_cls,pred_score in zip(pred_classes,pred_scores):
+        if(pred_cls == gt_classID):
+          score = pred_score
+          break
+
+      self.evalDict[file_name] = score
+
+  # Return a dictionary of the final result
+  def evaluate(self):
+    curriculum_dict      = OrderedDict( sorted(self.evalDict.items(), key=lambda item: item[1],reverse=True ) )
+    anti_curriculum_dict = OrderedDict( sorted(self.evalDict.items(), key=lambda item: item[1],reverse=False) )
+    return {"curriculum" : curriculum_dict, "anti_curriculum" : anti_curriculum_dict}
+
+
 
 
 #-----------------------------------------------------#
@@ -474,12 +520,12 @@ def inference_on_dataset(model, data_loader, evaluator): # modified version of i
 
 
 class MyEvaluator():
-  def __init__(self,cfg,model,dataset_used,getter,threshold_dimension,is_test_time_mapping):
+  def __init__(self,cfg,model,dataset_used,getter,threshold_dimension,is_test_time_mapping,is_crop_to_bbox):
     self.cfg = cfg
     self.dataset_used = dataset_used
     self.getter = getter
     self.model = model
-    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping)
+    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink="",is_crop_to_bbox=is_crop_to_bbox)
 
   
   def BaseEvaluate(self,testOrTrain,evaluator_object):
@@ -511,6 +557,10 @@ class MyEvaluator():
 
     return evaluation_results
 
+
+  def EvaluateBootstrapper(self,easy_to_hard=True):
+    bootstrapper = Bootstrapper()
+    return self.BaseEvaluate("train",bootstrapper)
 
 
   def EvaluateTopKAccuracy(self,testOrTrain,numK,isReturn=False):
