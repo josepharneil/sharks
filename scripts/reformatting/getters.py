@@ -1,10 +1,11 @@
 import torch
 
 class DictionaryGetters():
-  def __init__(self,baseDirectory,trainDirectory,valDirectory):
+  def __init__(self,baseDirectory,trainDirectory,valDirectory,curriculum_override=None):
     self.baseDirectory  = baseDirectory
     self.trainDirectory = trainDirectory
     self.valDirectory   = valDirectory
+    self.curriculum_override = curriculum_override
 
   # Used in registering datasets to catalogs
   def getSharkDicts(self,trainVal):
@@ -15,7 +16,12 @@ class DictionaryGetters():
 
   # Called by getSharkDicts
   def getSharkTrainDicts(self):
-    return torch.load(self.trainDirectory+"sharkTrainDicts.pt")
+    # If we're not overriding the standard train dict
+    if(self.curriculum_override == None):
+      return torch.load(self.trainDirectory+"sharkTrainDicts.pt")
+    # If we're using curriculum learning
+    else:
+      return torch.load(self.curriculum_override)
 
   # Called by getSharkDicts
   def getSharkValDicts(self):

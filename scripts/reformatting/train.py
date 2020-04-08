@@ -85,11 +85,12 @@ def my_build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Opti
 
 # class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
 class My_Trainer(DefaultTrain.MyDefaultTrainer):
-  def __init__(self,cfg,parser,getter,dataset_used,threshold_dimension,is_test_time_mapping,modelLink):
+  def __init__(self,cfg,parser,getter,dataset_used,threshold_dimension,is_test_time_mapping,modelLink,isShuffleData=True,is_crop_to_bbox=True):
     self.getter = getter
     self.dataset_used = dataset_used
-    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink)
-    super().__init__(cfg,parser,self.mapper_object)
+    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink,is_crop_to_bbox)
+    self.isShuffleData = isShuffleData
+    super().__init__(cfg,parser,self.mapper_object,isShuffleData=isShuffleData)
 
   # @classmethod
   # def build_test_loader(cls, cfg, dataset_name):
@@ -255,7 +256,7 @@ class My_Trainer(DefaultTrain.MyDefaultTrainer):
           cfg.TEST.EVAL_PERIOD,
           self.model,
           # Build a new data loader to not affect training
-          self.build_train_loader(cfg,self.mapper_object),
+          self.build_train_loader(cfg,self.mapper_object,self.isShuffleData),
           cfg.TEST.PRECISE_BN.NUM_ITER,
       )
       if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)

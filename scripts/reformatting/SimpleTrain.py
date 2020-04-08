@@ -19,7 +19,7 @@ class MySimpleTrainer(TrainerBase):
     or write your own training loop.
     """
 
-    def __init__(self, cfg, model, data_loader, optimizer):
+    def __init__(self, cfg, model, data_loader, curr_data_loader, optimizer):
         """
         Args:
             model: a torch Module. Takes a data from data_loader and returns a
@@ -40,6 +40,12 @@ class MySimpleTrainer(TrainerBase):
         self.model = model
         self.data_loader = data_loader
         self._data_loader_iter = iter(data_loader)
+        # If curriculum dataloader is not none (ie we're doing curriculum)
+        if(curr_data_loader != None):
+            # Set the standard iter to curr_data_loader (so we initially only load a subset)
+            self._data_loader_iter = iter(curr_data_loader)
+            # set the curr_data_loader to the normal FULL dataset loader
+            self.curr_data_loader  = iter(data_loader)
         self.optimizer = optimizer
         self.cfg = cfg
 
@@ -53,6 +59,12 @@ class MySimpleTrainer(TrainerBase):
         """
         If you want to do something with the data, you can wrap the dataloader.
         """
+        # if(self.iter == 275000):
+        if(self.iter == int(round(self.max_iter * 0.55))):
+            if(self.curr_data_loader != None):
+                # set it to the old loader (ie the whole dataset)
+                self._data_loader_iter = self.curr_data_loader
+        # in the case of curr, this is a subset of the iter
         data = next(self._data_loader_iter)
         data_time = time.perf_counter() - start
 

@@ -71,6 +71,8 @@ parser.add_argument("-r","--resume",default=-1,type=int,help="JobID to resume fr
 parser.add_argument("-b","--batch-size",default=0,type=int,help="Batch size")
 parser.add_argument("-t","--threshold",default=800,type=int,help="Image thresholder")
 parser.add_argument("-tt","--test-time",default=1,type=int,help="Test-time or not")
+parser.add_argument("-c","--curriculum",default=0,type=int,help="0 no curriculum, 1 curriclum, 2 anti-curriculum")
+parser.add_argument("-cr","--crop",default=1,type=int,help="Crop to bbox or not")
 
 
 dataset_used = ""
@@ -143,32 +145,9 @@ if(resumeID == -1 or resumeID == 0):
 else:
   print("Resuming training from: ",resumeID)
 
-#-----------------------------------------------------#
-#                   Get Dicts
-#-----------------------------------------------------#
-
-myDictGetters = getters.DictionaryGetters(baseDirectory=baseDirectory,
-                                          trainDirectory=trainDirectory,
-                                          valDirectory=valDirectory)
-
-SharkClassDictionary = myDictGetters.getSharkClassDictionary()
-ClassList = myDictGetters.getClassList()
-
 
 #-----------------------------------------------------#
-#                  Register to Catalogs
-#-----------------------------------------------------#
-for d in ["train", "val"]:
-  # Register shark_train and shark_val
-  DatasetCatalog.register("shark_" + d, lambda d=d: myDictGetters.getSharkDicts(d))
-  MetadataCatalog.get("shark_" + d).set(thing_classes=ClassList)
-
-shark_metadata = MetadataCatalog.get("shark_train")
-
-
-
-#-----------------------------------------------------#
-#                 Create the config
+#               Handle Model Parsed Arg
 #-----------------------------------------------------#
 modelLink = ""
 modelOutputFolderName = ""
@@ -203,6 +182,56 @@ elif(parser.parse_args().model == 6):
 else:
   raise ValueError("No such model index:", parser.parse_args().model)
 
+
+#-----------------------------------------------------#
+#              Handle Curriculum override
+#-----------------------------------------------------#
+# If we're not resuming, then no curriculum
+isShuffleData = True
+if(resumeID == -1 or resumeID == 0):
+  curriculum_override = None
+# if we ARE resuming
+else:
+  # If curriculum
+  if(parser.parse_args().curriculum == 1):
+    curriculum_override = baseOutputDirectory + modelOutputFolderName + "/" + "output_"+str(resumeID)+"/sharkTrainDicts-curriculum.pt"
+    isShuffleData = False
+  # If anti-curriculum
+  if(parser.parse_args().curriculum == 2):
+    curriculum_override = baseOutputDirectory + modelOutputFolderName + "/" + "output_"+str(resumeID)+"/sharkTrainDicts-anti-curriculum.pt"
+    isShuffleData = False
+  # If NO curriculum
+  else:
+    curriculum_override = None
+
+
+#-----------------------------------------------------#
+#               Get Dicts/ Dict Getters
+#-----------------------------------------------------#
+myDictGetters = getters.DictionaryGetters(baseDirectory=baseDirectory,
+                                          trainDirectory=trainDirectory,
+                                          valDirectory=valDirectory,
+                                          curriculum_override=curriculum_override)
+
+SharkClassDictionary = myDictGetters.getSharkClassDictionary()
+ClassList = myDictGetters.getClassList()
+
+
+#-----------------------------------------------------#
+#                  Register to Catalogs
+#-----------------------------------------------------#
+for d in ["train", "val"]:
+  # Register shark_train and shark_val
+  DatasetCatalog.register("shark_" + d, lambda d=d: myDictGetters.getSharkDicts(d))
+  MetadataCatalog.get("shark_" + d).set(thing_classes=ClassList)
+
+shark_metadata = MetadataCatalog.get("shark_train")
+
+
+#-----------------------------------------------------#
+#                 Create the config
+#-----------------------------------------------------#
+
 cfg = config.CreateCfg(parser=parser.parse_args(),
                 dataset_used=dataset_used,
                 numClasses=len(SharkClassDictionary),
@@ -235,8 +264,14 @@ if(is_test_time_mapping):
 else:
   print("is not test time mapping")
 
+if(isShuffleData): print("Shuffling data")
+else:              print("Not shuffling data")
 
-trainer = train.My_Trainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping,modelLink)
+is_crop_to_bbox = True if (parser.parse_args().crop == 1) else False
+if(is_crop_to_bbox): print("Cropping to bbox")
+else:                print("Not cropping to bbox")
+
+trainer = train.My_Trainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping,modelLink,isShuffleData,is_crop_to_bbox)
 
 # helpful print/ wrinting function:
 def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
@@ -330,8 +365,11 @@ parameterDict["num_classes"] = cfg.MODEL.RETINANET.NUM_CLASSES
 parameterDict["transforms"] = "not implemented"
 evaluationDict["params"] = parameterDict  
 
+is_crop_to_bbox = True if (parser.parse_args().crop == 1) else False
+if(is_crop_to_bbox): print("Cropping to bbox")
+else:                print("Not cropping to bbox")
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping)
+myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox)
 
 # coco
 # cocoValResults = myEvaluator.EvaluateTestCOCO()

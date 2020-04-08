@@ -72,6 +72,7 @@ parser.add_argument("-r","--resume",default=-1,type=int,help="JobID to resume fr
 parser.add_argument("-b","--batch-size",default=0,type=int,help="Batch size")
 parser.add_argument("-t","--threshold",default=800,type=int,help="Image thresholder")
 parser.add_argument("-tt","--test-time",default=1,type=int,help="Test-time or not")
+parser.add_argument("-cr","--crop",default=1,type=int,help="Crop to bbox or not")
 
 
 dataset_used = ""
@@ -340,8 +341,11 @@ evaluationDict["params"] = parameterDict
 threshold_dimension = parser.parse_args().threshold
 is_test_time_mapping = True if (parser.parse_args().test_time == 1) else False
 
+is_crop_to_bbox = True if (parser.parse_args().crop == 1) else False
+if(is_crop_to_bbox): print("Cropping to bbox")
+else:                print("Not cropping to bbox")
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,loadedModel,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping)
+myEvaluator = evaluate.MyEvaluator(cfg,loadedModel,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox)
 
 # coco
 # cocoResults = myEvaluator.EvaluateTestCOCO()

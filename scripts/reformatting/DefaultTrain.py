@@ -25,6 +25,113 @@ from collections import OrderedDict
 from detectron2.utils.events import get_event_storage
 
 
+import torch
+from detectron2.data import samplers
+from detectron2.utils.comm import get_world_size
+from detectron2.data.dataset_mapper import DatasetMapper
+from detectron2.data.common import AspectRatioGroupedDataset, DatasetFromList, MapDataset
+from detectron2.data.build import worker_init_reset_seed, get_detection_dataset_dicts, trivial_batch_collator
+import operator
+# import logging
+
+
+
+def my_build_detection_train_loader(cfg,mapper=None,isShuffleData=True,curriculum_fraction=0):
+    """
+    A data loader is created by the following steps:
+
+    1. Use the dataset names in config to query :class:`DatasetCatalog`, and obtain a list of dicts.
+    2. Start workers to work on the dicts. Each worker will:
+
+       * Map each metadata dict into another format to be consumed by the model.
+       * Batch them by simply putting dicts into a list.
+
+    The batched ``list[mapped_dict]`` is what this dataloader will return.
+
+    Args:
+        cfg (CfgNode): the config
+        mapper (callable): a callable which takes a sample (dict) from dataset and
+            returns the format to be consumed by the model.
+            By default it will be `DatasetMapper(cfg, True)`.
+
+    Returns:
+        an infinite iterator of training data
+    """
+    num_workers = get_world_size()
+    images_per_batch = cfg.SOLVER.IMS_PER_BATCH
+    assert (
+        images_per_batch % num_workers == 0
+    ), "SOLVER.IMS_PER_BATCH ({}) must be divisible by the number of workers ({}).".format(
+        images_per_batch, num_workers
+    )
+    assert (
+        images_per_batch >= num_workers
+    ), "SOLVER.IMS_PER_BATCH ({}) must be larger than the number of workers ({}).".format(
+        images_per_batch, num_workers
+    )
+    images_per_worker = images_per_batch // num_workers
+
+    dataset_dicts = get_detection_dataset_dicts(
+        cfg.DATASETS.TRAIN,
+        filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+        min_keypoints=cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE
+        if cfg.MODEL.KEYPOINT_ON
+        else 0,
+        proposal_files=cfg.DATASETS.PROPOSAL_FILES_TRAIN if cfg.MODEL.LOAD_PROPOSALS else None,
+    )
+    dataset = DatasetFromList(dataset_dicts, copy=False)
+
+    if mapper is None:
+        mapper = DatasetMapper(cfg, True)
+    dataset = MapDataset(dataset, mapper)
+
+    sampler_name = cfg.DATALOADER.SAMPLER_TRAIN
+    logger = logging.getLogger(__name__)
+    logger.info("Using training sampler {}".format(sampler_name))
+    if sampler_name == "TrainingSampler":
+        # If the fraction is the default 0, use the whole dataset
+        if(curriculum_fraction == 0):
+            sampler = samplers.TrainingSampler(len(dataset),shuffle=isShuffleData)
+        # If the fraction is not 0, then take that fraction of the dataset as a subset
+        else:
+            new_len = int(round(len(dataset)*curriculum_fraction))
+            sampler = samplers.TrainingSampler(new_len,shuffle=isShuffleData)
+    elif sampler_name == "RepeatFactorTrainingSampler":
+        sampler = samplers.RepeatFactorTrainingSampler(
+            dataset_dicts, cfg.DATALOADER.REPEAT_THRESHOLD
+        )
+    else:
+        raise ValueError("Unknown training sampler: {}".format(sampler_name))
+
+    if cfg.DATALOADER.ASPECT_RATIO_GROUPING:
+        data_loader = torch.utils.data.DataLoader(
+            dataset,
+            sampler=sampler,
+            num_workers=cfg.DATALOADER.NUM_WORKERS,
+            batch_sampler=None,
+            collate_fn=operator.itemgetter(0),  # don't batch, but yield individual elements
+            worker_init_fn=worker_init_reset_seed,
+        )  # yield individual mapped dict
+        data_loader = AspectRatioGroupedDataset(data_loader, images_per_worker)
+    else:
+        batch_sampler = torch.utils.data.sampler.BatchSampler(
+            sampler, images_per_worker, drop_last=True
+        )
+        # drop_last so the batch always have the same size
+        data_loader = torch.utils.data.DataLoader(
+            dataset,
+            num_workers=cfg.DATALOADER.NUM_WORKERS,
+            batch_sampler=batch_sampler,
+            collate_fn=trivial_batch_collator,
+            worker_init_fn=worker_init_reset_seed,
+        )
+
+    return data_loader
+
+
+
+
+
 class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
     """
     A trainer with default training logic. Compared to `SimpleTrainer`, it
@@ -67,11 +174,12 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         trainer.train()
     """
 
-    def __init__(self, cfg, parser, mapper_object):
+    def __init__(self, cfg, parser, mapper_object, isShuffleData):
         """
         Args:
             cfg (CfgNode):
         """
+        self.isShuffleData = isShuffleData
         self.mapper_object = mapper_object
         logger = logging.getLogger("detectron2")
         if not logger.isEnabledFor(logging.INFO):  # setup_logger is not called for d2
@@ -79,14 +187,20 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         # Assume these objects must be constructed in this order.
         model = self.build_model(cfg)
         optimizer = self.build_optimizer(cfg, model)
-        data_loader = self.build_train_loader(cfg,self.mapper_object)
+        data_loader = self.build_train_loader(cfg,self.mapper_object, self.isShuffleData)
+        # If we're shuffling data, we're not doing curriculum learning
+        if(isShuffleData):
+            curr_data_loader = None
+        # If we're NOT shuffling, then we're doing curriculum learning
+        else:
+            curr_data_loader = my_build_detection_train_loader(cfg, mapper=mapper_object.train_mapper, isShuffleData=isShuffleData, curriculum_fraction=0.3)
 
         # For training, wrap with DDP. But don't need this for inference.
         if comm.get_world_size() > 1:
             model = DistributedDataParallel(
                 model, device_ids=[comm.get_local_rank()], broadcast_buffers=False
             )
-        super().__init__(cfg, model, data_loader, optimizer)
+        super().__init__(cfg, model, data_loader, curr_data_loader, optimizer)
 
         self.scheduler = self.build_lr_scheduler(cfg, optimizer)
         # Assume no other objects need to be checkpointed.
@@ -148,7 +262,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
                 cfg.TEST.EVAL_PERIOD,
                 self.model,
                 # Build a new data loader to not affect training
-                self.build_train_loader(cfg,self.mapper_object),
+                self.build_train_loader(cfg,self.mapper_object,self.isShuffleData),
                 cfg.TEST.PRECISE_BN.NUM_ITER,
             )
             if cfg.TEST.PRECISE_BN.ENABLED and get_bn_modules(self.model)
@@ -267,7 +381,7 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
 
 
     @classmethod
-    def build_train_loader(cls, cfg, mapper_object):
+    def build_train_loader(cls, cfg, mapper_object, isShuffleData):
         """
         Returns:
             iterable
@@ -275,7 +389,8 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         It now calls :func:`detectron2.data.build_detection_train_loader`.
         Overwrite it if you'd like a different data loader.
         """
-        return build_detection_train_loader(cfg, mapper=mapper_object.train_mapper)
+        return my_build_detection_train_loader(cfg, mapper=mapper_object.train_mapper, isShuffleData=isShuffleData)
+        # return build_detection_train_loader(cfg, mapper=mapper_object.train_mapper)
 
 
     @classmethod
