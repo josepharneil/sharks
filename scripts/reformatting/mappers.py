@@ -72,11 +72,12 @@ class RandomAffineTransform(Transform):
 
 
 class My_Mapper():
-  def __init__(self,dataset_used,threshold_dimension=800,is_test_time_mapping=False,modelLink=""):
+  def __init__(self,dataset_used,threshold_dimension=800,is_test_time_mapping=False,modelLink="",is_crop_to_bbox=True):
     self.dataset_used = dataset_used
     self.threshold_dimension = threshold_dimension
     self.is_test_time_mapping = is_test_time_mapping
     self.modelLink = modelLink
+    self.is_crop_to_bbox = is_crop_to_bbox
 
   def train_mapper(self,dataset_dict):#,dataset_used):
     # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
@@ -92,7 +93,7 @@ class My_Mapper():
     
     ## Crop to bounding box ##
     # Crop for all but comparison
-    if(self.dataset_used != "comparison"):
+    if(self.dataset_used != "comparison" and self.is_crop_to_bbox):
       # Get the bounding box
       bbox = ((dataset_dict["annotations"])[0])["bbox"]
       xmin,ymin,xmax,ymax = bbox
