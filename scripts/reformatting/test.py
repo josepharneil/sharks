@@ -271,7 +271,7 @@ cfg.OUTPUT_DIR = resume_path
 
 # helpful print/ wrinting function:
 def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
-  text_file = open(cfg.OUTPUT_DIR+"/parameters-information-"+str(resumeID)+".txt",writeType)
+  text_file = open(cfg.OUTPUT_DIR+"/parameters-information-"+str(actualJobID)+".txt",writeType)
   text_file.write(stringToPrintWrite)
   text_file.close()
 

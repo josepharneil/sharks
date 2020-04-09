@@ -271,7 +271,7 @@ cfg.OUTPUT_DIR = resume_path
 
 # helpful print/ wrinting function:
 def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
-  text_file = open(cfg.OUTPUT_DIR+"/parameters-information-"+str(resumeID)+".txt",writeType)
+  text_file = open(cfg.OUTPUT_DIR+"/parameters-information-"+str(actualJobID)+".txt",writeType)
   text_file.write(stringToPrintWrite)
   text_file.close()
 
@@ -381,7 +381,7 @@ for file_name,score in curriculum_bootstrap_dict.items():
 
 # Save to new dict
 torch.save(curriculum_train_dicts,cfg.OUTPUT_DIR+"/sharkTrainDicts-curriculum.pt")
-PrintAndWriteToParams("Saving to curriculum dict to: \t"+cfg.OUTPUT_DIR+"/sharkTrainDicts-curriculum.pt","a+")
+PrintAndWriteToParams("Saving to curriculum dict to: \t"+cfg.OUTPUT_DIR+"/sharkTrainDicts-curriculum.pt\n","a+")
 
 
 # Sort by score from boostrap_dict
@@ -399,7 +399,7 @@ for file_name,score in anti_curriculum_bootstrap_dict.items():
 
 # Save to new dict
 torch.save(anti_curriculum_train_dicts,cfg.OUTPUT_DIR+"/sharkTrainDicts-anti-curriculum.pt")
-PrintAndWriteToParams("Saving to anti-curriculum dict to: \t"+cfg.OUTPUT_DIR+"/sharkTrainDicts-anti-curriculum.pt","a+")
+PrintAndWriteToParams("Saving to anti-curriculum dict to: \t"+cfg.OUTPUT_DIR+"/sharkTrainDicts-anti-curriculum.pt\n","a+")
 
 
 
