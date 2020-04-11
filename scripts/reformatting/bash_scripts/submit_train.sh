@@ -12,6 +12,8 @@ THRESHOLD=800
 TESTTIME=1
 DATASET=2
 CURRICULUM=0
+CURRICULUMID=0
+OPTIM=0
 CROP=1
 OTHER_ARGUMENTS=()
 
@@ -74,8 +76,18 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+	-cid)
+        CURRICULUMID="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
         -cr|--crop)
         CROP="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
+        -op|--optimiser)
+        OPTIM="$2"
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
@@ -86,10 +98,10 @@ if [ $QUEUE -eq 0 ]
 then
   echo Using the standard queue
   echo Training dataset $DATASET
-  sbatch train_long.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -c $CURRICULUM -cr $CROP
+  sbatch train_long.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -c $CURRICULUM -cr $CROP -cid $CURRICULUMID -op $OPTIM
 else
   echo Using the very short queue
   echo Training dataset $DATASET
-  sbatch train_short.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -c $CURRICULUM -cr $CROP
+  sbatch train_short.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -c $CURRICULUM -cr $CROP -cid $CURRICULUMID -op $OPTIM
 fi
 

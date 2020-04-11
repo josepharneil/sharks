@@ -28,6 +28,8 @@ BATCHSIZE=0
 THRESHOLD=800
 TESTTIME=1
 CURRICULUM=0
+CURRICULUMID=0
+OPTIM=0
 CROP=1
 
 OTHER_ARGUMENTS=()
@@ -86,8 +88,18 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+	-cid)
+        CURRICULUMID="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
         -cr|--crop)
         CROP="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
+        -op|--optimiser)
+        OPTIM="$2"
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
@@ -116,4 +128,4 @@ echo CROP $CROP
 echo
 echo TESTTIME $TESTTIME
 
-python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -c $CURRICULUM -cr $CROP
+python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -c $CURRICULUM -cr $CROP -cid $CURRICULUMID -op $OPTIM
