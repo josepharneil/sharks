@@ -46,6 +46,8 @@ class MySimpleTrainer(TrainerBase):
             self._data_loader_iter = iter(curr_data_loader)
             # set the curr_data_loader to the normal FULL dataset loader
             self.curr_data_loader  = iter(data_loader)
+        else:
+            self.curr_data_loader = None
         self.optimizer = optimizer
         self.cfg = cfg
 

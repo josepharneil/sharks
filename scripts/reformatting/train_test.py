@@ -43,6 +43,8 @@ import config
 import getters
 import writers
 import train
+import ModelPaths
+# import RetinaNetOHEM, DropoutRetinaNet
 
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -72,7 +74,12 @@ parser.add_argument("-b","--batch-size",default=0,type=int,help="Batch size")
 parser.add_argument("-t","--threshold",default=800,type=int,help="Image thresholder")
 parser.add_argument("-tt","--test-time",default=1,type=int,help="Test-time or not")
 parser.add_argument("-c","--curriculum",default=0,type=int,help="0 no curriculum, 1 curriclum, 2 anti-curriculum")
+parser.add_argument("-cid","--curriculum_id",default=0,type=int,help="curriculum id, similar to resume")
 parser.add_argument("-cr","--crop",default=1,type=int,help="Crop to bbox or not")
+parser.add_argument("-op","--optimiser",default=0,type=int,help="Which optimiser: 0 sgd; 1 adam; 2 adagrad")
+
+if( (parser.parse_args().resume not in [-1,0]) and (parser.parse_args().curriclum in [1,2] )):
+  raise NotImplementedError("I haven't bothered to implement resuming and curriculum learning yet \n\t- need to be able to set appropriate dataloader depending on iter")
 
 
 dataset_used = ""
@@ -149,6 +156,9 @@ else:
 #-----------------------------------------------------#
 #               Handle Model Parsed Arg
 #-----------------------------------------------------#
+modelLink,modelOutputFolderName,meta_arch_override = ModelPaths.GetModelLinks(parser.parse_args().model)
+
+'''
 modelLink = ""
 modelOutputFolderName = ""
 if(parser.parse_args().model == 0):
@@ -179,26 +189,35 @@ elif(parser.parse_args().model == 6):
   modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
   modelOutputFolderName = "retinanet_R_101_FPN_3x_OHEM"
   meta_arch_override = "RetinaNetOHEM"
+elif(parser.parse_args().model == 7):
+  modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
+  modelOutputFolderName = "retinanet_R_101_FPN_3x_DROPOUT"
+  meta_arch_override = "DropoutRetinaNet"
 else:
   raise ValueError("No such model index:", parser.parse_args().model)
-
+'''
 
 #-----------------------------------------------------#
 #              Handle Curriculum override
 #-----------------------------------------------------#
-# If we're not resuming, then no curriculum
+# If we're not doing curriculum, no override
 isShuffleData = True
-if(resumeID == -1 or resumeID == 0):
+if(parser.parse_args().curriculum == 0):
   curriculum_override = None
-# if we ARE resuming
+# if we ARE doing curriculum
 else:
+  if(parser.parse_args().curriculum_id == 0):
+    raise ValueError("If we're doing curriculum learning, we need to set a curriculum ID as well")
+  else:
+    currID = parser.parse_args().curriculum_id
+
   # If curriculum
   if(parser.parse_args().curriculum == 1):
-    curriculum_override = baseOutputDirectory + modelOutputFolderName + "/" + "output_"+str(resumeID)+"/sharkTrainDicts-curriculum.pt"
+    curriculum_override = baseOutputDirectory + modelOutputFolderName + "/" + "output_"+str(currID)+"/sharkTrainDicts-curriculum.pt"
     isShuffleData = False
   # If anti-curriculum
   if(parser.parse_args().curriculum == 2):
-    curriculum_override = baseOutputDirectory + modelOutputFolderName + "/" + "output_"+str(resumeID)+"/sharkTrainDicts-anti-curriculum.pt"
+    curriculum_override = baseOutputDirectory + modelOutputFolderName + "/" + "output_"+str(currID)+"/sharkTrainDicts-anti-curriculum.pt"
     isShuffleData = False
   # If NO curriculum
   else:
@@ -239,7 +258,8 @@ cfg = config.CreateCfg(parser=parser.parse_args(),
                 modelLink=modelLink,
                 modelOutputFolderName=modelOutputFolderName,
                 jobIDOverride=resumeID,
-                meta_arch_override=meta_arch_override)
+                meta_arch_override=meta_arch_override,
+                optim=parser.parse_args().optimiser)
                 # if no resumeID is entered/parsed, it will be -1 and do nothing
 
 #-----------------------------------------------------#
@@ -302,11 +322,14 @@ PrintAndWriteToParams(OutputString)
 PrintAndWriteToParams("\nTransforms: crop-to-bbox, rescale, brightness etc., AFFINE: shear (-8,8) in each axis + rotations (-30,30) + scale (0.9)\n","a+")
 # PrintAndWriteToParams("\nNo test time data augmentation (except crop-to-bbox, and rescaling) \n","a+")
 
+PrintAndWriteToParams("Model type: "+str(type(trainer.model)),"a+")
+
 #-----------------------------------------------------#
 #                      Train
 #-----------------------------------------------------#
 # If true, and the last checkpoint exists, resume from it
 # If false, load a model specified by the config
+
 
 # Don't resume
 if(resumeID == -1 or resumeID == 0):

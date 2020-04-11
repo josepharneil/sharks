@@ -6,7 +6,7 @@ from detectron2.utils.events import get_event_storage
 from fvcore.nn import sigmoid_focal_loss_jit, smooth_l1_loss
 
 
-@META_ARCH_REGISTRY.register()
+# @META_ARCH_REGISTRY.register()
 class RetinaNetOHEM(RetinaNet):
     def __init__(self,cfg):
       super().__init__(cfg)

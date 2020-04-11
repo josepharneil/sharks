@@ -32,6 +32,8 @@ from detectron2.data.dataset_mapper import DatasetMapper
 from detectron2.data.common import AspectRatioGroupedDataset, DatasetFromList, MapDataset
 from detectron2.data.build import worker_init_reset_seed, get_detection_dataset_dicts, trivial_batch_collator
 import operator
+
+import RetinaNetOHEM,DropoutRetinaNet
 # import logging
 
 
@@ -351,6 +353,10 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
             model = MyVGG.Create_VGG(cfg.MODEL.RETINANET.NUM_CLASSES)
         elif(cfg.MODEL.META_ARCHITECTURE == "YOLOV3"):
             model = MyYOLO.Create_YOLO(cfg.MODEL.RETINANET.NUM_CLASSES)
+        elif(cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM"):
+            model = RetinaNetOHEM.RetinaNetOHEM(cfg)
+        elif(cfg.MODEL.META_ARCHITECTURE == "DropoutRetinaNet"):
+            model = DropoutRetinaNet.DropoutRetinaNet(cfg)
         else:
             model = build_model(cfg)
             logger = logging.getLogger(__name__)

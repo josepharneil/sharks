@@ -73,11 +73,19 @@ def my_build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Opti
                 weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
             params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-    optimizer = torch.optim.SGD(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    if(cfg.optim == 0):
+      optimizer = torch.optim.SGD(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
+    elif(cfg.optim == 1):
+      optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR)
+    elif(cfg.optim == 2):
+      optimizer = torch.optim.Adagrad(params, cfg.SOLVER.BASE_LR)
+    else:
+      raise ValueError("cfg.optim value does not exist: " + str(cfg.optim))
+
+    print("Optimiser being used: ",type(optimizer))
     # Adam(params, lr, betas, eps, weight_decay, amsgrad)
     # default momentum: 0.9
     # optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
-    # optimizer = torch.optim.Adam(params, cfg.SOLVER.BASE_LR)
     # print("Using ADAM optimizer - note that the momentum is the default in ADAM, and is not associated with the CFG")
     return optimizer
 
@@ -141,10 +149,11 @@ class My_Trainer(DefaultTrain.MyDefaultTrainer):
 
       It is not implemented by default.
       """
-      if(dataset_name == "shark_val"):
-        return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, cfg=cfg, k=1, output_images=True)
-      else:
-        return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, k=1)
+      return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, k=1)
+      # if(dataset_name == "shark_val"):
+        # return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, cfg=cfg, k=1, output_images=True)
+      # else:
+        # return evaluate.TopKAccuracy(getter=getter, dataset_used=dataset_used, k=1)
       
 
       raise NotImplementedError(

@@ -13,10 +13,12 @@ import os
 
 # modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
 
-def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutputFolderName,jobIDOverride=-1,meta_arch_override=None):
+def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutputFolderName,jobIDOverride=-1,meta_arch_override=None,optim=0):
 
   # default configuration
   cfg = get_cfg()
+
+  cfg.update({"optim":optim})
 
   # get the pretrained retinanet model
   if(modelLink not in ["VGG19_BN","YOLOV3"] ):
@@ -77,9 +79,9 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
 
 
   # _C.SOLVER.CHECKPOINT_PERIOD = 5000 #CONSIDER CHANGING THIS
-  numberOfCheckpoints = 5
+  numberOfCheckpoints = 10
   checkpointPeriod = int(round(cfg.SOLVER.MAX_ITER/numberOfCheckpoints))
-  # cfg.SOLVER.CHECKPOINT_PERIOD = checkpointPeriod
+  cfg.SOLVER.CHECKPOINT_PERIOD = checkpointPeriod
   cfg.TEST.EVAL_PERIOD = checkpointPeriod
   # if(parser.accuracy == 0):
     # cfg.TEST.EVAL_PERIOD = 0 # TO DISABLE
@@ -106,7 +108,9 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
     cfg.MODEL.META_ARCHITECTURE = modelLink
 
   if(meta_arch_override == "RetinaNetOHEM"):
-    cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM"
+    cfg.MODEL.META_ARCHITECTURE = "RetinaNetOHEM"
+  elif(meta_arch_override == "DropoutRetinaNet"):
+    cfg.MODEL.META_ARCHITECTURE = "DropoutRetinaNet"
 
   # Used in evaluation
   # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")

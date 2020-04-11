@@ -43,6 +43,8 @@ import config
 import getters
 import writers
 import train
+import ModelPaths
+import DefaultTrain
 
 from detectron2.modeling import build_model
 from detectron2.checkpoint import DetectionCheckpointer
@@ -169,26 +171,28 @@ shark_metadata = MetadataCatalog.get("shark_train")
 #-----------------------------------------------------#
 #                 Create the config
 #-----------------------------------------------------#
-modelLink = ""
-modelOutputFolderName = ""
-if(parser.parse_args().model == 0):
-  modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
-  modelOutputFolderName = "retinanet_R_50_FPN_1x"
-elif(parser.parse_args().model == 1):
-  modelLink = "COCO-Detection/retinanet_R_50_FPN_3x.yaml"
-  modelOutputFolderName = "retinanet_R_50_FPN_3x"
-elif(parser.parse_args().model == 2):
-  modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
-  modelOutputFolderName = "retinanet_R_101_FPN_3x"
-elif(parser.parse_args().model == 3):
-  modelLink = "COCO-Detection/faster_rcnn_R_50_C4_1x.yaml"
-  modelOutputFolderName = "faster_rcnn_R_50_C4_1x"
-elif(parser.parse_args().model == 4):
-  modelLink = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
-  modelOutputFolderName = "mask_rcnn_R_50_FPN_3x"
-else:
-  modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
-  modelOutputFolderName = "retinanet_R_50_FPN_1x"
+modelLink,modelOutputFolderName,meta_arch_override = ModelPaths.GetModelLinks(parser.parse_args().model)
+
+# modelLink = ""
+# modelOutputFolderName = ""
+# if(parser.parse_args().model == 0):
+#   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
+#   modelOutputFolderName = "retinanet_R_50_FPN_1x"
+# elif(parser.parse_args().model == 1):
+#   modelLink = "COCO-Detection/retinanet_R_50_FPN_3x.yaml"
+#   modelOutputFolderName = "retinanet_R_50_FPN_3x"
+# elif(parser.parse_args().model == 2):
+#   modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
+#   modelOutputFolderName = "retinanet_R_101_FPN_3x"
+# elif(parser.parse_args().model == 3):
+#   modelLink = "COCO-Detection/faster_rcnn_R_50_C4_1x.yaml"
+#   modelOutputFolderName = "faster_rcnn_R_50_C4_1x"
+# elif(parser.parse_args().model == 4):
+#   modelLink = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
+#   modelOutputFolderName = "mask_rcnn_R_50_FPN_3x"
+# else:
+#   modelLink = "COCO-Detection/retinanet_R_50_FPN_1x.yaml"
+#   modelOutputFolderName = "retinanet_R_50_FPN_1x"
 
 # cfg = config.CreateCfg(parser=parser.parse_args(),
 #                 dataset_used=dataset_used,
@@ -253,7 +257,8 @@ cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.05
 cfg.MODEL.RETINANET.SCORE_THRESH_TEST = 0.05
 
 # Build the model
-loadedModel = build_model(cfg)
+# loadedModel = build_model(cfg)
+loadedModel = DefaultTrain.MyDefaultTrainer.build_model(cfg)
 # Load the model
 DetectionCheckpointer(loadedModel).load(resume_path+"/model_final.pth")
 
@@ -369,7 +374,10 @@ def EvaluateAPatIOU(IOU):
 
   return AP_at_XX_For_Class
 
-AP_At_50 = EvaluateAPatIOU(0.5)
+if(not modelLink == "VGG19_BN"):
+  AP_At_50 = EvaluateAPatIOU(0.5)
+else:
+  AP_At_50 = "N/A"
 
 
 # Do Top K Test Accuracy

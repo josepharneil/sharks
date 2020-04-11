@@ -298,7 +298,7 @@ class My_Mapper():
 
     
     ## Crop to bounding box ##
-    if(self.dataset_used != "comparison"):
+    if(self.dataset_used != "comparison" and self.is_crop_to_bbox):
       # Get the bounding box
       bbox = ((dataset_dict["annotations"])[0])["bbox"]
       xmin,ymin,xmax,ymax = bbox
