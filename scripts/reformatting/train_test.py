@@ -73,12 +73,12 @@ parser.add_argument("-r","--resume",default=-1,type=int,help="JobID to resume fr
 parser.add_argument("-b","--batch-size",default=0,type=int,help="Batch size")
 parser.add_argument("-t","--threshold",default=800,type=int,help="Image thresholder")
 parser.add_argument("-tt","--test-time",default=1,type=int,help="Test-time or not")
-parser.add_argument("-c","--curriculum",default=0,type=int,help="0 no curriculum, 1 curriclum, 2 anti-curriculum")
+parser.add_argument("-c","--curriculum",default=0,type=int,help="0 no curriculum, 1 curriculum, 2 anti-curriculum")
 parser.add_argument("-cid","--curriculum_id",default=0,type=int,help="curriculum id, similar to resume")
 parser.add_argument("-cr","--crop",default=1,type=int,help="Crop to bbox or not")
 parser.add_argument("-op","--optimiser",default=0,type=int,help="Which optimiser: 0 sgd; 1 adam; 2 adagrad")
 
-if( (parser.parse_args().resume not in [-1,0]) and (parser.parse_args().curriclum in [1,2] )):
+if( (parser.parse_args().resume not in [-1,0]) and (parser.parse_args().curriculum in [1,2] )):
   raise NotImplementedError("I haven't bothered to implement resuming and curriculum learning yet \n\t- need to be able to set appropriate dataloader depending on iter")
 
 
