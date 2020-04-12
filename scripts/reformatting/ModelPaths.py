@@ -33,6 +33,10 @@ def GetModelLinks(model_index):
     modelLink = "COCO-Detection/retinanet_R_101_FPN_3x.yaml"
     modelOutputFolderName = "retinanet_R_101_FPN_3x_DROPOUT"
     meta_arch_override = "DropoutRetinaNet"
+  elif(model_index == 8):
+    modelLink = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+    modelOutputFolderName = "faster_rcnn_R_101_FPN_3x"
+    meta_arch_override = None
   else:
     raise ValueError("No such model index:", model_index)
 
