@@ -45,6 +45,7 @@ import writers
 import train
 import ModelPaths
 import MyPredictor
+import MyDirectoryHandler
 # import RetinaNetOHEM, DropoutRetinaNet
 
 from PIL import ImageFile
@@ -78,6 +79,7 @@ parser.add_argument("-c","--curriculum",default=0,type=int,help="0 no curriculum
 parser.add_argument("-cid","--curriculum_id",default=0,type=int,help="curriculum id, similar to resume")
 parser.add_argument("-cr","--crop",default=1,type=int,help="Crop to bbox or not")
 parser.add_argument("-op","--optimiser",default=0,type=int,help="Which optimiser: 0 sgd; 1 adam; 2 adagrad")
+# parser.add_argument("-xv","--cross-val",default=-1,type=int,help="Which cross-val set")
 
 if( (parser.parse_args().resume not in [-1,0]) and (parser.parse_args().curriculum in [1,2] )):
   raise NotImplementedError("I haven't bothered to implement resuming and curriculum learning yet \n\t- need to be able to set appropriate dataloader depending on iter")
@@ -96,6 +98,21 @@ elif(parser.parse_args().dataset == 1):
 elif(parser.parse_args().dataset == 2):
   dataset_used = "full"
   print("Dataset being used is the full dataset")
+elif(parser.parse_args().dataset == 20):
+  dataset_used = "split0"
+  print("Dataset being used is the full dataset, split 0")
+elif(parser.parse_args().dataset == 21):
+  dataset_used = "split1"
+  print("Dataset being used is the full dataset, split 1")
+elif(parser.parse_args().dataset == 22):
+  dataset_used = "split2"
+  print("Dataset being used is the full dataset, split 2")
+elif(parser.parse_args().dataset == 23):
+  dataset_used = "split3"
+  print("Dataset being used is the full dataset, split 3")
+elif(parser.parse_args().dataset == 24):
+  dataset_used = "split4"
+  print("Dataset being used is the full dataset, split 4")
 # elif(parser.parse_args().dataset == "c"):
 elif(parser.parse_args().dataset == 3):
   dataset_used = "comparison"
@@ -114,34 +131,73 @@ sourceJsonDirectory = ""
 baseDirectory       = ""
 baseOutputDirectory = ""
 
-if(dataset_used == "small"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = baseDirectory + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
-if(dataset_used == "large"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = baseDirectory + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
-if(dataset_used == "full"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
-if(dataset_used == "comparison"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/comparison_set/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = baseDirectory + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
+baseOutputDirectory, baseDirectory, trainDirectory, valDirectory, imageDirectory, sourceJsonDirectory = MyDirectoryHandler.GetDatasetDirectories(dataset_used)
+
+# if(dataset_used == "small"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = baseDirectory + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "large"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = baseDirectory + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "full"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "split0"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/splits/0_split/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "split1"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/splits/2_split/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "split2"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/splits/3_split/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "split3"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/splits/3_split/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "split4"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/splits/4_split/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# elif(dataset_used == "comparison"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/comparison_set/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = baseDirectory + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# else:
+#   raise ValueError("dataset_used doesn't exist:"+dataset_used)
 
 #-----------------------------------------------------#
 #                  Handle ResumeID

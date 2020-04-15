@@ -45,6 +45,7 @@ import writers
 import train
 import ModelPaths
 import DefaultTrain
+import MyDirectoryHandler
 
 from detectron2.modeling import build_model
 from detectron2.checkpoint import DetectionCheckpointer
@@ -108,34 +109,36 @@ sourceJsonDirectory = ""
 baseDirectory       = ""
 baseOutputDirectory = ""
 
-if(dataset_used == "small"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = baseDirectory + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
-if(dataset_used == "large"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = baseDirectory + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
-if(dataset_used == "full"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
-if(dataset_used == "comparison"):
-  baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
-  baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/comparison_set/"
-  trainDirectory      = baseDirectory + "train/"
-  valDirectory        = baseDirectory + "val/"
-  imageDirectory      = baseDirectory + "images/"
-  sourceJsonDirectory = baseDirectory + "data.json"
+baseOutputDirectory, baseDirectory, trainDirectory, valDirectory, imageDirectory, sourceJsonDirectory = MyDirectoryHandler.GetDatasetDirectories(dataset_used)
+
+# if(dataset_used == "small"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/small/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/small_set/photos/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = baseDirectory + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# if(dataset_used == "large"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/large/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = baseDirectory + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# if(dataset_used == "full"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/full/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/full_set/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/large_set/" + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
+# if(dataset_used == "comparison"):
+#   baseOutputDirectory = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/outputs/comparison/"
+#   baseDirectory       = "/mnt/storage/home/ja16475/sharks/detectron2/scratch/comparison_set/"
+#   trainDirectory      = baseDirectory + "train/"
+#   valDirectory        = baseDirectory + "val/"
+#   imageDirectory      = baseDirectory + "images/"
+#   sourceJsonDirectory = baseDirectory + "data.json"
 
 
 actualJobID = parser.parse_args().jobid
