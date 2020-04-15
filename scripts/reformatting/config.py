@@ -111,6 +111,8 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
     cfg.MODEL.META_ARCHITECTURE = "RetinaNetOHEM"
   elif(meta_arch_override == "DropoutRetinaNet"):
     cfg.MODEL.META_ARCHITECTURE = "DropoutRetinaNet"
+  elif(meta_arch_override == "DropoutRetinaNet2"):
+    cfg.MODEL.META_ARCHITECTURE = "DropoutRetinaNet2"
 
   # Used in evaluation
   # cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
