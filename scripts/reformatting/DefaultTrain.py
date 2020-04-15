@@ -33,7 +33,7 @@ from detectron2.data.common import AspectRatioGroupedDataset, DatasetFromList, M
 from detectron2.data.build import worker_init_reset_seed, get_detection_dataset_dicts, trivial_batch_collator
 import operator
 
-import RetinaNetOHEM,DropoutRetinaNet
+import RetinaNetOHEM,DropoutRetinaNet,MyBuildModel
 # import logging
 
 
@@ -348,21 +348,25 @@ class MyDefaultTrainer(SimpleTrain.MySimpleTrainer):
         It now calls :func:`detectron2.modeling.build_model`.
         Overwrite it if you'd like a different model.
         """
-        # handle yolo and vgg
-        if(cfg.MODEL.META_ARCHITECTURE == "VGG19_BN"):
-            model = MyVGG.Create_VGG(cfg.MODEL.RETINANET.NUM_CLASSES)
-        elif(cfg.MODEL.META_ARCHITECTURE == "YOLOV3"):
-            model = MyYOLO.Create_YOLO(cfg.MODEL.RETINANET.NUM_CLASSES)
-        elif(cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM"):
-            model = RetinaNetOHEM.RetinaNetOHEM(cfg)
-        elif(cfg.MODEL.META_ARCHITECTURE == "DropoutRetinaNet"):
-            model = DropoutRetinaNet.DropoutRetinaNet(cfg)
-        else:
-            model = build_model(cfg)
-            logger = logging.getLogger(__name__)
-            logger.info("Model:\n{}".format(model))
+
+        return MyBuildModel.my_build_model(cfg)
+        # # handle yolo and vgg
+        # if(cfg.MODEL.META_ARCHITECTURE == "VGG19_BN"):
+        #     model = MyVGG.Create_VGG(cfg.MODEL.RETINANET.NUM_CLASSES)
+        # elif(cfg.MODEL.META_ARCHITECTURE == "YOLOV3"):
+        #     model = MyYOLO.Create_YOLO(cfg.MODEL.RETINANET.NUM_CLASSES)
+        # elif(cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM"):
+        #     model = RetinaNetOHEM.RetinaNetOHEM(cfg)
+        # elif(cfg.MODEL.META_ARCHITECTURE == "DropoutRetinaNet"):
+        #     model = DropoutRetinaNet.DropoutRetinaNet(cfg)
+        # elif(cfg.MODEL.META_ARCHITECTURE == "DropoutRetinaNet2"):
+        #     model = DropoutRetinaNet.DropoutRetinaNet2(cfg)
+        # else:
+        #     model = build_model(cfg)
+        #     logger = logging.getLogger(__name__)
+        #     logger.info("Model:\n{}".format(model))
             
-        return model
+        # return model
 
 
     @classmethod

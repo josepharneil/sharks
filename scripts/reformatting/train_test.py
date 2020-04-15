@@ -16,7 +16,7 @@ import shutil
 
 from detectron2.structures import BoxMode
 from detectron2 import model_zoo
-from detectron2.engine import DefaultPredictor
+# from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import DatasetCatalog, MetadataCatalog
@@ -44,6 +44,7 @@ import getters
 import writers
 import train
 import ModelPaths
+import MyPredictor
 # import RetinaNetOHEM, DropoutRetinaNet
 
 from PIL import ImageFile
@@ -353,22 +354,23 @@ cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
 # Attempt to create a predictor
 # This may fail if training fails, in which case we move the slurm to the output folder
 # and raise an error
-if(modelLink not in ["VGG19_BN","YOLOV3"] ):
-  try:
-    predictor = DefaultPredictor(cfg)
-  except AssertionError:
-    print("Checkpoint not found, model not found")
-    ### Move the Slurm file ###
-    # Get the jobname
-    jobName = str(parser.parse_args().jobid)
-    print("Moving ",jobName)
-    # Create the file name
-    filename = "slurm-"+jobName+".out"
-    # Copy the file
-    shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-    # Delete the original 
-    os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
-    raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
+# if(modelLink not in ["VGG19_BN","YOLOV3"] ):
+try:
+  # predictor = DefaultPredictor(cfg)
+  predictor = MyPredictor.MyPredictor(cfg)
+except AssertionError:
+  print("Checkpoint not found, model not found")
+  ### Move the Slurm file ###
+  # Get the jobname
+  jobName = str(parser.parse_args().jobid)
+  print("Moving ",jobName)
+  # Create the file name
+  filename = "slurm-"+jobName+".out"
+  # Copy the file
+  shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
+  # Delete the original 
+  os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
+  raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
 
 
 # Create an evaluation dictionary which we store as a file at the end of evaluation
