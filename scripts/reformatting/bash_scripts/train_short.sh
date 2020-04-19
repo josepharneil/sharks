@@ -31,6 +31,7 @@ CURRICULUM=0
 CURRICULUMID=0
 OPTIM=0
 CROP=1
+FIXED=0
 
 OTHER_ARGUMENTS=()
 
@@ -103,6 +104,11 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+        -f)
+        FIXED="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
     esac
 done
 
@@ -128,4 +134,4 @@ echo CURRICULUM $CURRICULUM
 echo CROP $CROP
 echo
 
-python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -c $CURRICULUM -cr $CROP -cid $CURRICULUMID -op $OPTIM
+python3 train_test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -c $CURRICULUM -cr $CROP -cid $CURRICULUMID -op $OPTIM -f $FIXED

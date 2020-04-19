@@ -12,6 +12,7 @@ THRESHOLD=800
 TESTTIME=1
 DATASET=2
 CROP=1
+FIXED=0
 OTHER_ARGUMENTS=()
 
 # Loop through arguments and process them
@@ -73,6 +74,11 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+        -f)
+        FIXED="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
     esac
 done
 
@@ -80,10 +86,10 @@ if [ $QUEUE -eq 0 ]
 then
   echo Using the standard queue
   echo Training dataset $DATASET
-  sbatch test_long.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -cr $CROP
+  sbatch test_long.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -cr $CROP -f $FIXED
 else
   echo Using the very short queue
   echo Training dataset $DATASET
-  sbatch test_short.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -cr $CROP
+  sbatch test_short.sh -lr $LR -m $MODEL -i $MAX_ITER -a $ACC -r $RESUME -b $BATCHSIZE -t $THRESHOLD -tt $TESTTIME -d $DATASET -cr $CROP -f $FIXED
 fi
 

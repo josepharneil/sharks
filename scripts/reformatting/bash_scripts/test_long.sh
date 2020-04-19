@@ -28,6 +28,7 @@ BATCHSIZE=0
 THRESHOLD=800
 TESTTIME=1
 CROP=1
+FIXED=0
 
 OTHER_ARGUMENTS=()
 
@@ -85,6 +86,11 @@ do
         shift # Remove argument name from processing
         shift # Remove argument value from processing
         ;;
+        -f)
+        FIXED="$2"
+        shift # Remove argument name from processing
+        shift # Remove argument value from processing
+        ;;
     esac
 done
 
@@ -110,4 +116,4 @@ echo CROP $CROP
 echo
 
 
-python3 test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -cr $CROP
+python3 test.py -d $DATASET -lr $LR -m $MODEL -i $MAX_ITER -id $SLURM_JOBID -r $RESUME -b $BATCHSIZE -a $ACC -t $THRESHOLD -tt $TESTTIME -cr $CROP -f $FIXED
