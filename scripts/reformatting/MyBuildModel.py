@@ -22,6 +22,8 @@ def my_build_model(cfg):
       model = MyYOLO.Create_YOLO(cfg.MODEL.RETINANET.NUM_CLASSES)
   elif(cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM"):
       model = RetinaNetOHEM.RetinaNetOHEM(cfg)
+  elif(cfg.MODEL.META_ARCHITECTURE == "RetinaNetOHEM2"):
+      model = RetinaNetOHEM.RetinaNetOHEM2(cfg)
   elif(cfg.MODEL.META_ARCHITECTURE == "DropoutRetinaNet"):
       model = DropoutRetinaNet.DropoutRetinaNet(cfg)
   elif(cfg.MODEL.META_ARCHITECTURE == "DropoutRetinaNet2"):
