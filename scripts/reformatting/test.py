@@ -76,6 +76,7 @@ parser.add_argument("-b","--batch-size",default=0,type=int,help="Batch size")
 parser.add_argument("-t","--threshold",default=800,type=int,help="Image thresholder")
 parser.add_argument("-tt","--test-time",default=1,type=int,help="Test-time or not")
 parser.add_argument("-cr","--crop",default=1,type=int,help="Crop to bbox or not")
+parser.add_argument("-f","--fixed",default=0,type=int,help="Fixed wh or not")
 
 
 dataset_used = ""
@@ -91,6 +92,21 @@ elif(parser.parse_args().dataset == 1):
 elif(parser.parse_args().dataset == 2):
   dataset_used = "full"
   print("Dataset being used is the full dataset")
+elif(parser.parse_args().dataset == 20):
+  dataset_used = "split0"
+  print("Dataset being used is the full dataset, split 0")
+elif(parser.parse_args().dataset == 21):
+  dataset_used = "split1"
+  print("Dataset being used is the full dataset, split 1")
+elif(parser.parse_args().dataset == 22):
+  dataset_used = "split2"
+  print("Dataset being used is the full dataset, split 2")
+elif(parser.parse_args().dataset == 23):
+  dataset_used = "split3"
+  print("Dataset being used is the full dataset, split 3")
+elif(parser.parse_args().dataset == 24):
+  dataset_used = "split4"
+  print("Dataset being used is the full dataset, split 4")
 # elif(parser.parse_args().dataset == "c"):
 elif(parser.parse_args().dataset == 3):
   dataset_used = "comparison"
@@ -297,6 +313,7 @@ OutputString = "\nDate time: \t"    + dateTime \
              + "\nIteration at which LR starts to decrease by "+str(cfg.SOLVER.GAMMA)+": "+str(cfg.SOLVER.STEPS) \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
              + "\nImages per batch: \t"     + str(cfg.SOLVER.IMS_PER_BATCH) \
+             + "\nThreshold dimension: \t" + str(parser.parse_args().threshold) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
              + "\n________________________________________________________" \
              + "\n"
@@ -352,8 +369,13 @@ is_test_time_mapping = True if (parser.parse_args().test_time == 1) else False
 is_crop_to_bbox = True if (parser.parse_args().crop == 1) else False
 if(is_crop_to_bbox): print("Cropping to bbox")
 else:                print("Not cropping to bbox")
+
+fixed_wh = True if (parser.parse_args().fixed == 1) else False
+if(fixed_wh): print("Fixed wh")
+else:         print("Not fixed wh")
+
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,loadedModel,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox)
+myEvaluator = evaluate.MyEvaluator(cfg,loadedModel,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox,actualJobID,fixed_wh)
 
 # coco
 # cocoResults = myEvaluator.EvaluateTestCOCO()
@@ -377,49 +399,66 @@ def EvaluateAPatIOU(IOU):
 
   return AP_at_XX_For_Class
 
-if(not modelLink == "VGG19_BN"):
-  AP_At_50 = EvaluateAPatIOU(0.5)
-else:
-  AP_At_50 = "N/A"
+# if(not modelLink == "VGG19_BN"):
+  # AP_At_50 = EvaluateAPatIOU(0.5)
+# else:
+  # AP_At_50 = "N/A"
 
+# AP_At_50 = EvaluateAPatIOU(0.50)
+# PrintAndWriteToParams("50: "+str(AP_At_50),"a+")
+# AP_At_70 = EvaluateAPatIOU(0.70)
+# PrintAndWriteToParams("70: "+str(AP_At_70),"a+")
+# AP_At_85 = EvaluateAPatIOU(0.85)
+# PrintAndWriteToParams("85: "+str(AP_At_85),"a+")
+# AP_At_90 = EvaluateAPatIOU(0.90)
+# PrintAndWriteToParams("90: "+str(AP_At_90),"a+")
+
+# appendString = "\nRESULT: ap50, ap70, ap85, ap90 : " + str(round(AP_At_50,3)) + ", " + str(round(AP_At_70,3)) + ", " + str(round(AP_At_85,3)) + ", " + str(round(AP_At_90,3)) + "\n"
+# PrintAndWriteToParams(appendString,"a+")
+
+# accResult = myEvaluator.EvaluateTestTopKAccuracy(1)
+# accResult = myEvaluator.EvaluateTrainTopKAccuracy(1)
 
 # Do Top K Test Accuracy
-KAccDict = OrderedDict()
+# KAccDict = OrderedDict()
 # for i in range(1,11,2):
-for i in range(1,3,2):
-  accResult = myEvaluator.EvaluateTestTopKAccuracy(i)
-  k = accResult["k"]
-  key = "top_"+str(k)+"_acc"
-  KAccDict[key] = accResult
-  if(i == 1):
-    testAccAt1 = str(accResult["accuracy"]) + "%"
+# for i in range(1,3,2):
+#   accResult = myEvaluator.EvaluateTestTopKAccuracy(i)
+#   k = accResult["k"]
+#   key = "top_"+str(k)+"_acc"
+#   KAccDict[key] = accResult
+#   if(i == 1):
+#     testAccAt1 = str(accResult["accuracy"]) + "%"
 
-evaluationDict["acc"] = KAccDict
-torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
+# result = myEvaluator.EvaluateTopKAccuracyFilenames(testOrTrain="test",numK=10)
+result = myEvaluator.EvaluateTopKAccuracyFilenames(testOrTrain="train",numK=10)
 
-
-# Create the string we're going to add to the text_file
-appendString = "\n________________________________________________________" \
-              + "\nEvaluating the performance on training dataset" \
-              + "\n"
-PrintAndWriteToParams(appendString,"a+")
+# evaluationDict["acc"] = KAccDict
+# torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
 
 
-# Do Top K Train Accuracy
-# for i in range(1,11,2):
-for i in range(1,3,2):
-  train_accResult = myEvaluator.EvaluateTrainTopKAccuracy(i)
-  if(i == 1):
-    trainAccAt1 = str(train_accResult["accuracy"]) + "%"
-
-# Append to file
-appendString = "\n________________________________________________________" \
-              + "\n"
-PrintAndWriteToParams(appendString,"a+")
+# # Create the string we're going to add to the text_file
+# appendString = "\n________________________________________________________" \
+#               + "\nEvaluating the performance on training dataset" \
+#               + "\n"
+# PrintAndWriteToParams(appendString,"a+")
 
 
-appendString = "\nRESULT: ap50, train, test : " + str(round(AP_At_50,3)) + ", " + trainAccAt1 + ", " + testAccAt1 + "\n"
-PrintAndWriteToParams(appendString,"a+")
+# # Do Top K Train Accuracy
+# # for i in range(1,11,2):
+# for i in range(1,3,2):
+#   train_accResult = myEvaluator.EvaluateTrainTopKAccuracy(i)
+#   if(i == 1):
+#     trainAccAt1 = str(train_accResult["accuracy"]) + "%"
+
+# # Append to file
+# appendString = "\n________________________________________________________" \
+#               + "\n"
+# PrintAndWriteToParams(appendString,"a+")
+
+
+# appendString = "\nRESULT: ap50, train, test : " + str(round(AP_At_50,3)) + ", " + trainAccAt1 + ", " + testAccAt1 + "\n"
+# PrintAndWriteToParams(appendString,"a+")
 
 PrintAndWriteToParams("Finished evaluation!\n","a+")
 

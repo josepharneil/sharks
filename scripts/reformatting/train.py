@@ -93,10 +93,10 @@ def my_build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Opti
 
 # class SmallSetTrainer(DefaultTrain.MyDefaultTrainer):
 class My_Trainer(DefaultTrain.MyDefaultTrainer):
-  def __init__(self,cfg,parser,getter,dataset_used,threshold_dimension,is_test_time_mapping,modelLink,isShuffleData=True,is_crop_to_bbox=True):
+  def __init__(self,cfg,parser,getter,dataset_used,threshold_dimension,is_test_time_mapping,modelLink,isShuffleData=True,is_crop_to_bbox=True,fixed_wh=False):
     self.getter = getter
     self.dataset_used = dataset_used
-    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink,is_crop_to_bbox)
+    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink,is_crop_to_bbox,fixed_wh)
     self.isShuffleData = isShuffleData
     super().__init__(cfg,parser,self.mapper_object,isShuffleData=isShuffleData)
 

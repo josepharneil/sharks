@@ -72,12 +72,13 @@ class RandomAffineTransform(Transform):
 
 
 class My_Mapper():
-  def __init__(self,dataset_used,threshold_dimension=800,is_test_time_mapping=False,modelLink="",is_crop_to_bbox=True):
+  def __init__(self,dataset_used,threshold_dimension=800,is_test_time_mapping=False,modelLink="",is_crop_to_bbox=True,fixed_wh=False):
     self.dataset_used = dataset_used
     self.threshold_dimension = threshold_dimension
     self.is_test_time_mapping = is_test_time_mapping
     self.modelLink = modelLink
     self.is_crop_to_bbox = is_crop_to_bbox
+    self.fixed_wh = fixed_wh
 
   def train_mapper(self,dataset_dict):#,dataset_used):
     # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
@@ -172,7 +173,7 @@ class My_Mapper():
       if(currHeight > thresholdDimension or currWidth > thresholdDimension):
         myNewH = 0
         myNewW = 0
-        # Scale the longest dimension to 1333, the shorter to 800
+        # Scale the longest dimension to threshold, other in proportion
         if(currHeight > currWidth): 
           myNewH = thresholdDimension
           ratio = currHeight/float(myNewH)
@@ -181,13 +182,18 @@ class My_Mapper():
           # myNewW = 800
         else:
           # myNewH = 800
+          
           myNewW = thresholdDimension
           ratio = currWidth/float(myNewW)
           myNewH = currHeight/float(ratio)
           myNewH = int(round(myNewH))
+ 
 
         # Apply the scaling transform
-        scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+        if(self.fixed_wh):
+          scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewH,new_w=myNewW,interp="nearest") 
+        else:
+          scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
         image = scaleT.apply_image(image.copy())
 
         # Apply the scaling to the bbox
@@ -394,7 +400,12 @@ class My_Mapper():
           myNewH = int(round(myNewH))
 
         # Apply the scaling transform
-        scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+        # scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewH,new_w=myNewW,interp="nearest") 
+        # scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
+        if(self.fixed_wh):
+          scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewH,new_w=myNewW,interp="nearest") 
+        else:
+          scaleT = T.ScaleTransform(h=currHeight,w=currWidth,new_h=myNewW,new_w=myNewH,interp="nearest") 
         image = scaleT.apply_image(image.copy())
 
         # Apply the scaling to the bbox

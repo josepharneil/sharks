@@ -79,7 +79,8 @@ parser.add_argument("-c","--curriculum",default=0,type=int,help="0 no curriculum
 parser.add_argument("-cid","--curriculum_id",default=0,type=int,help="curriculum id, similar to resume")
 parser.add_argument("-cr","--crop",default=1,type=int,help="Crop to bbox or not")
 parser.add_argument("-op","--optimiser",default=0,type=int,help="Which optimiser: 0 sgd; 1 adam; 2 adagrad")
-# parser.add_argument("-xv","--cross-val",default=-1,type=int,help="Which cross-val set")
+parser.add_argument("-f","--fixed",default=0,type=int,help="Fixed wh or not")
+
 
 if( (parser.parse_args().resume not in [-1,0]) and (parser.parse_args().curriculum in [1,2] )):
   raise NotImplementedError("I haven't bothered to implement resuming and curriculum learning yet \n\t- need to be able to set appropriate dataloader depending on iter")
@@ -348,7 +349,11 @@ is_crop_to_bbox = True if (parser.parse_args().crop == 1) else False
 if(is_crop_to_bbox): print("Cropping to bbox")
 else:                print("Not cropping to bbox")
 
-trainer = train.My_Trainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping,modelLink,isShuffleData,is_crop_to_bbox)
+fixed_wh = True if (parser.parse_args().fixed == 1) else False
+if(fixed_wh): print("Fixed wh")
+else:         print("Not fixed wh")
+
+trainer = train.My_Trainer(cfg,parser.parse_args(),myDictGetters,dataset_used,threshold_dimension,is_test_time_mapping,modelLink,isShuffleData,is_crop_to_bbox,fixed_wh)
 
 # helpful print/ wrinting function:
 def PrintAndWriteToParams(stringToPrintWrite,writeType="w"):
@@ -371,6 +376,7 @@ OutputString = "\nDate time: \t"    + dateTime \
              + "\nMax iterations: \t"    + str(cfg.SOLVER.MAX_ITER) \
              + "\nImages per batch: \t"     + str(cfg.SOLVER.IMS_PER_BATCH) \
              + "\nNumber of classes: \t" + str(cfg.MODEL.RETINANET.NUM_CLASSES) \
+             + "\nThreshold dimension: \t" + str(threshold_dimension) \
              + "\n________________________________________________________" \
              + "\n"
 
@@ -416,15 +422,14 @@ try:
   predictor = MyPredictor.MyPredictor(cfg)
 except AssertionError:
   print("Checkpoint not found, model not found")
-  ### Move the Slurm file ###
-  # Get the jobname
-  jobName = str(parser.parse_args().jobid)
-  print("Moving ",jobName)
+  # jobName = str(parser.parse_args().jobid)
+  jobName = str(actualJobID)
   # Create the file name
   filename = "slurm-"+jobName+".out"
+  print("Moving ",filename)
   # Copy the file
   shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-  # Delete the original 
+  # Delete the original
   os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
   raise AssertionError("model_final.pth not found! It's likely that training somehow failed.")
 
@@ -450,7 +455,7 @@ is_crop_to_bbox = True if (parser.parse_args().crop == 1) else False
 if(is_crop_to_bbox): print("Cropping to bbox")
 else:                print("Not cropping to bbox")
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox)
+myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox,fixed_wh)
 
 # coco
 # cocoValResults = myEvaluator.EvaluateTestCOCO()
@@ -543,5 +548,5 @@ filename = "slurm-"+jobName+".out"
 print("Moving ",filename)
 # Copy the file
 shutil.copy("/mnt/storage/home/ja16475/sharks/detectron2/"+filename, cfg.OUTPUT_DIR+"/"+filename)
-# Delete the original 
+# Delete the original
 os.remove("/mnt/storage/home/ja16475/sharks/detectron2/"+filename)
