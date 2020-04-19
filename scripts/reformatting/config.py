@@ -83,9 +83,9 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
   checkpointPeriod = int(round(cfg.SOLVER.MAX_ITER/numberOfCheckpoints))
   cfg.SOLVER.CHECKPOINT_PERIOD = checkpointPeriod
   cfg.TEST.EVAL_PERIOD = checkpointPeriod
-  # if(parser.accuracy == 0):
-    # cfg.TEST.EVAL_PERIOD = 0 # TO DISABLE
-  # cfg.TEST.EVAL_PERIOD = 0
+  if(parser.accuracy == 0):
+    print("Evaluating only 2 times")
+    cfg.TEST.EVAL_PERIOD = int(round(cfg.SOLVER.MAX_ITER/2))
 
   # Number of classes
   cfg.MODEL.ROI_HEADS.NUM_CLASSES = numClasses  # only has one class (ballon)
@@ -109,6 +109,8 @@ def CreateCfg(parser,dataset_used,numClasses, baseOutputDir,modelLink,modelOutpu
 
   if(meta_arch_override == "RetinaNetOHEM"):
     cfg.MODEL.META_ARCHITECTURE = "RetinaNetOHEM"
+  elif(meta_arch_override == "RetinaNetOHEM2"):
+    cfg.MODEL.META_ARCHITECTURE = "RetinaNetOHEM2"
   elif(meta_arch_override == "DropoutRetinaNet"):
     cfg.MODEL.META_ARCHITECTURE = "DropoutRetinaNet"
   elif(meta_arch_override == "DropoutRetinaNet2"):
