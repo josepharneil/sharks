@@ -200,6 +200,191 @@ class TopKAccuracy(DatasetEvaluator):
 
     # return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.perClassDict}
 
+class TopKAccuracyFilenames(DatasetEvaluator):
+  def __init__(self, getter, dataset_used, cfg=None, k=5, output_images=False):
+    self.k = k
+    self.perClassDict = OrderedDict()
+    self.ClassList = getter.getClassList()
+    self.dataset_used = dataset_used
+    self.output_images = output_images
+    self.bboxSaveDict = {}
+    self.cfg = cfg
+
+  def reset(self):
+    self.numberCorrect = 0
+    self.totalNumber   = 0
+    self.perClassDict = OrderedDict()
+  # I think this is a single batch, with the inputted images and outputted results
+  def process(self, inputs, outputs):
+    for input,output in zip(inputs,outputs):
+      # Increment the total number no matter what
+      self.totalNumber = self.totalNumber + 1
+
+      # Get the true class ID
+      classID = input["classID"]
+      trueSharkID = self.ClassList[classID]
+
+      # Increment the total number in this class's dict entry
+      # (numCorrect,totalNum,list of incorrect filenames)
+      # Add the filename, it will be removed if this is counts as correct
+      currentFilename = input["file_name"]
+      # If this sharkID already exists
+      if(trueSharkID in self.perClassDict.keys()):
+        newNumCorrect = self.perClassDict[trueSharkID][0]
+        newTotalNum = self.perClassDict[trueSharkID][1]
+        
+        # if(self.dataset_used == "small"):
+        # Get the current list
+        newList = (self.perClassDict[trueSharkID][2])
+        # Append
+        newList.append(currentFilename)
+        # else: # when using "large"
+          # newList = []
+        # if(self.dataset_used == "small"):
+        #   # Get the current list
+        #   newList = (self.perClassDict[trueSharkID][2])
+        #   # Append
+        #   newList.append(currentFilename)
+        # else: # when using "large"
+        #   newList = []
+
+        self.perClassDict[trueSharkID] = ( newNumCorrect, newTotalNum + 1, newList )
+      else:
+        self.perClassDict[trueSharkID] = (0,1,[currentFilename])
+
+      # Get the instances object from the outputs
+      instances = output["instances"]
+      
+      # Get the predicted classes for this image
+      classes = instances.get("pred_classes")
+      # Convert classes to more useful sharkIDs
+      predictedSharkIDs = []
+      for c in classes:
+        predictedSharkIDs.append(self.ClassList[c])
+
+      # Get the list of scores for each prediction
+      scores = instances.get("scores")
+      scores = scores.cpu()
+      scores = scores.numpy()
+
+      try:
+        bboxes = instances.get("pred_boxes")
+        bboxes = [box.cpu().numpy() for box in bboxes]
+      except:
+        bboxes = [-1 for s in scores]
+      
+      # If there are no predicted scores for his input, skip iteration of the loop
+      if(len(scores) == 0): continue
+
+      # Zip up the predicted shark IDs and scores into a dictionary
+      # sharkIDScoreDict = dict(zip(predictedSharkIDs,scores))
+      sharkIDScoreList = list(zip(predictedSharkIDs,scores,bboxes))
+      # Sort it into a list of descending order, in order of the value (the score)
+      # sortedSharkIDScoreList = sorted(sharkIDScoreDict.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
+      sortedSharkIDScoreList = sorted(sharkIDScoreList, key = lambda kv:(kv[1], kv[0]), reverse=True)
+
+      # sortedSharkIDScoreList is a list of tuples: [(sharkID,score,bbox),...]
+      # sortedSharkIDScoreList[0] gives you the highest scoring tuple
+      # (sortedSharkIDScoreList[0])[0] gives you the sharkID for the 0th tuple
+
+      # Get the top K shark IDs
+      # topKPredictedIDs = []
+      for i in range(0,self.k):
+        # If the list is shorter than the number of k's we want to look at, 
+        # then break, no need to continue as there are no more predictions to consider
+        if(i >= len(sortedSharkIDScoreList)): break
+        # Extract ith tuple
+        currentTuple = sortedSharkIDScoreList[i]
+        # Get the shark ID
+        currentPredID = currentTuple[0]
+        currentScore = currentTuple[1]
+        # currentBbox = currentTuple[2]
+        if(self.output_images):
+          # Only save the highest predicted
+          if(i == 0):
+            try: 
+              transforms = output["transforms"]
+            except:
+              transforms = "broke"
+              # print(output.keys())
+
+            saveTuple = (currentTuple[0],currentTuple[1],currentTuple[2],transforms)
+            self.bboxSaveDict[currentFilename] = saveTuple
+
+        # Append this to the top K predictions
+        # topKPredictedIDs.append(currentPredID)
+
+        # We increase the rank of the correct prediction for each equivalence we find
+        # So if there are many predictions with the same score to the correct prediction
+        # we are "lowering" its rank to not consider it as much 
+        # (where rank 0 is the highest)
+        rank = -1
+
+        # # If we're dealing with the true one
+        # if(currentPredID == trueSharkID):
+        #   # Go through all pairs
+        #   for idx,scoreSharkIDPair in enumerate(sortedSharkIDScoreList):
+        #     # If there is an equivalent score
+        #     if(scoreSharkIDPair[1] == currentScore):
+        #       rank = idx
+        #       break
+
+        # If the current predictedID we are considering is the trueSharkID
+        if(currentPredID == trueSharkID):
+          # Compare the correct prediction's score to all other scores
+          for idx,scoreSharkIDPair in enumerate(sortedSharkIDScoreList):
+            # If there is an equivalence in score
+            if(scoreSharkIDPair[1] == currentScore):
+              # If the rank hasn't been initialised, 
+              # set it to the lowest index of this score
+              if(rank == -1): 
+                rank = idx + 1
+              # If the rank has been set, increment
+              else:
+                # Increment the rank
+                # Note, this will occur at least once as we compare it to itself
+                rank = rank + 1
+          # If the rank has exceed the number k we wanted to look at, don't count it
+          if(rank <= self.k):
+            # We increment, and then we don't care about the rest of the k's
+            self.numberCorrect = self.numberCorrect + 1
+
+            # Increment the correct of this class
+            # Remove the filename
+
+            # if(len(newList) > 1)
+            newNumCorrect = self.perClassDict[trueSharkID][0]
+            newTotalNum = self.perClassDict[trueSharkID][1]
+            newList = (self.perClassDict[trueSharkID][2])
+            # if(self.dataset_used == "small"):
+            newList.remove(currentFilename)
+
+            self.perClassDict[currentPredID] = ( newNumCorrect+1, newTotalNum, newList )
+            break
+
+  # Return a dictionary of the final result
+  def evaluate(self):
+
+    if(self.output_images):
+      torch.save(self.bboxSaveDict, self.cfg.OUTPUT_DIR+"/bboxSaveDict.pt")
+
+    # Sort the dictionary by proportion correct
+    self.perClassDict = OrderedDict(sorted(self.perClassDict.items(), key=lambda t: (t[1])[0]/(t[1])[1]))
+
+    accuracy = float(self.numberCorrect) / float(self.totalNumber)
+    # {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.perClassDict}
+    result = OrderedDict()
+    # result["total_num"] = self.totalNumber
+    # result["num_correct"] = self.numberCorrect
+    # result["accuracy"] = accuracy
+    # result["k"] = self.k
+    # result["perClass"] = self.perClassDict
+
+    result["topKAcc"] = {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.perClassDict}
+
+    return result
+
+    # return {"total_num": self.totalNumber, "num_correct": self.numberCorrect, "accuracy": accuracy, "k": self.k, "perClass": self.perClassDict}
 
 
 class Bootstrapper(DatasetEvaluator):
@@ -293,6 +478,8 @@ class APatIOU(DatasetEvaluator):
 
       # Get out mapped instances
       mapped_instances = input["instances"]
+      # print(input)
+      # print(output)
       # Get the transformed groundtruth bboxes
       mapped_gt_box     = mapped_instances.get("gt_boxes").to(device)
       mapped_gt_classes = mapped_instances.get("gt_classes")
@@ -520,12 +707,13 @@ def inference_on_dataset(model, data_loader, evaluator): # modified version of i
 
 
 class MyEvaluator():
-  def __init__(self,cfg,model,dataset_used,getter,threshold_dimension,is_test_time_mapping,is_crop_to_bbox):
+  def __init__(self,cfg,model,dataset_used,getter,threshold_dimension,is_test_time_mapping,is_crop_to_bbox,overrideJobID=-1,fixed_wh=False):
     self.cfg = cfg
     self.dataset_used = dataset_used
     self.getter = getter
     self.model = model
-    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink="",is_crop_to_bbox=is_crop_to_bbox)
+    self.overrideJobID = overrideJobID
+    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink="",is_crop_to_bbox=is_crop_to_bbox,fixed_wh)
 
   
   def BaseEvaluate(self,testOrTrain,evaluator_object):
@@ -561,6 +749,94 @@ class MyEvaluator():
   def EvaluateBootstrapper(self,easy_to_hard=True):
     bootstrapper = Bootstrapper()
     return self.BaseEvaluate("train",bootstrapper)
+
+  def EvaluateTopKAccuracyFilenames(self,testOrTrain,numK,isReturn=False):
+    topKEvaluator = TopKAccuracyFilenames(getter=self.getter,dataset_used=self.dataset_used,k=numK)
+    accuracy_results = self.BaseEvaluate(testOrTrain,topKEvaluator)
+
+    if(isReturn):
+      return accuracy_results["topKAcc"]
+    else:
+      accuracy_results = accuracy_results["topKAcc"]
+      # Extract results
+      total_num   = str(accuracy_results["total_num"])
+      num_correct = str(accuracy_results["num_correct"])
+      top_k_acc   = str(round((accuracy_results["accuracy"]*100),2)) + "%"
+      k           = str(accuracy_results["k"])
+      # Per class is an ordered dictionary of classIDs mapping to triples of the form 
+      # (numCorrect,totalNum,list of incorrectly classified filenames)
+      # OD( classID: (numCorr,totNum,list),...  )
+      perClass    = accuracy_results["perClass"]
+
+      perClassFiles = ""
+      perClassString = " Class  || prop  | numCorrect | totalNum\n"
+      for key,value in perClass.items():
+        # 6 chars long
+        currClass = key
+
+        # 3 chars long
+        currCorrect = value[0]
+        currCorrectStr = str(currCorrect)
+        if(currCorrect < 100):
+          currCorrectStr = "0"+currCorrectStr
+          if(currCorrect < 10): 
+            currCorrectStr = "0"+currCorrectStr
+
+        # 3 chars long
+        currTotal = value[1]
+        currTotalStr = str(currTotal)
+        if(currTotal < 100):
+          currTotalStr = "0"+currTotalStr
+          if(currTotal < 10): 
+            currTotalStr = "0"+currTotalStr
+
+        # 4 chars long
+        currPropCorrect = str(round(((float(currCorrect)/float(currTotal))*100),2))
+        # If the string is of form 12.3, make it 12.30
+        if(len(currPropCorrect) == 4):
+          currPropCorrect = currPropCorrect + '0'
+
+        # Per class string
+        perClassString = perClassString + (" "+currClass+" || "+currPropCorrect+" |    "+currCorrectStr+"     |   "+currTotalStr+"\n")
+
+        # Class:filenames
+        listOfFilenames = value[2]
+        seperator = ', '
+        perClassFiles = perClassFiles + (currClass+": [" + seperator.join(listOfFilenames) + "]\n")
+
+
+      # Create the string we're going to add to the text_file
+      appendString = "\n________________________________________________________" \
+                  + "\nNumber correct: \t" + num_correct \
+                  + "\nTotal Number: \t\t" + total_num \
+                  + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+                  + "\n"
+
+      appendString = appendString + perClassString
+      appendString = appendString + perClassFiles
+
+      # Append to the file
+      if(self.overrideJobID == -1):
+        text_file = open(self.cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+        text_file.write(appendString)
+        text_file.close()
+      else:
+        text_file = open(self.cfg.OUTPUT_DIR+"/parameters-information-"+str(self.overrideJobID)+".txt", "a+")
+        text_file.write(appendString)
+        text_file.close()
+
+      # Print the file
+      print(  "\nNumber correct: \t" + num_correct \
+            + "\nTotal Number: \t\t" + total_num \
+            + "\nTop " + str(k) + " Accuracy: \t" + top_k_acc \
+            + "\n\n")
+
+      result = OrderedDict()
+      result["accuracy"]    = round(accuracy_results["accuracy"]*100,2)
+      result["num_correct"] = accuracy_results["num_correct"]
+      result["total_num"]   = accuracy_results["total_num"]
+      result["k"]           = accuracy_results["k"]
+      return result
 
 
   def EvaluateTopKAccuracy(self,testOrTrain,numK,isReturn=False):
@@ -659,9 +935,14 @@ class MyEvaluator():
       appendString = appendString + perClassFiles
 
       # Append to the file
-      text_file = open(self.cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
-      text_file.write(appendString)
-      text_file.close()
+      if(self.overrideJobID == -1):
+        text_file = open(self.cfg.OUTPUT_DIR+"/parameters-information.txt", "a+")
+        text_file.write(appendString)
+        text_file.close()
+      else:
+        text_file = open(self.cfg.OUTPUT_DIR+"/parameters-information-"+str(self.overrideJobID)+".txt", "a+")
+        text_file.write(appendString)
+        text_file.close()
 
       # Print the file
       print(  "\nNumber correct: \t" + num_correct \
