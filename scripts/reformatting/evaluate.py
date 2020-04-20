@@ -713,7 +713,7 @@ class MyEvaluator():
     self.getter = getter
     self.model = model
     self.overrideJobID = overrideJobID
-    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink="",is_crop_to_bbox=is_crop_to_bbox,fixed_wh)
+    self.mapper_object = mappers.My_Mapper(dataset_used,threshold_dimension,is_test_time_mapping,modelLink="",is_crop_to_bbox=is_crop_to_bbox,fixed_wh=fixed_wh)
 
   
   def BaseEvaluate(self,testOrTrain,evaluator_object):
