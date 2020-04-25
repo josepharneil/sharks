@@ -455,7 +455,7 @@ is_crop_to_bbox = True if (parser.parse_args().crop == 1) else False
 if(is_crop_to_bbox): print("Cropping to bbox")
 else:                print("Not cropping to bbox")
 # Create evaluator object
-myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox,fixed_wh)
+myEvaluator = evaluate.MyEvaluator(cfg,trainer.model,dataset_used,myDictGetters,threshold_dimension,is_test_time_mapping,is_crop_to_bbox,-1,fixed_wh)
 
 # coco
 # cocoValResults = myEvaluator.EvaluateTestCOCO()
