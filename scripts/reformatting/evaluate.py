@@ -23,6 +23,101 @@ import numpy as np
 #               Define the TopKAcc Class
 #-----------------------------------------------------#
 
+class Pairwise(DatasetEvaluator):
+  def __init__(self,getter,cfg):
+    # self.ClassList = getter.getClassList()
+
+    # Don't use the standard list, use the descending size-order list
+    self.ClassList = ["R-1045","R-1035","R-1155","R-1353","R-1215","R-1273","R-1096","R-1265","R-1385","R-1014","R-1352","R-1012","R-1099","R-1049","R-1209","R-1010","R-1104","R-1027","R-1002","R-1213","R-1131","R-1064","R-1397","R-1138","R-1018","R-1294","R-1001","R-1318","R-1068","R-1182","R-1115","R-1184","R-1230","R-1431","R-1369","R-1117","R-1178","R-1059","R-1072","R-1280","R-1210","R-1305","R-1380","R-1093","R-1007","R-1289","R-1190","R-1415","R-1153","R-1334","R-1423","R-1194","R-1341","R-1350","R-1284","R-1378","R-1109","R-1208","R-1364","R-1339","R-1262","R-1158","R-1444","R-1292","R-1317","R-1270","R-1335","R-1047","R-1006","R-1161","R-1060","R-1122","R-1474","R-1462","R-1163","R-1308","R-1070","R-1296","R-1310","R-1347","R-1448","R-1249","R-1017","R-1321","R-1195","R-1322","R-1389","R-1331","R-1024","R-1172","R-1413","R-1114","R-1348","R-1357","R-1447","R-1124","R-1250","R-1036","R-1058","R-1220","R-1248","R-1156","R-1277","R-1008","R-1086","R-1164","R-1368","R-1382","R-1095","R-1291","R-1132","R-1361","R-1337","R-1203","R-1360","R-1469","R-1141","R-1197","R-1299","R-1403","R-1061","R-1332","R-1437","R-1005","R-1137","R-1130","R-1261","R-1136","R-1028","R-1275","R-1342","R-1015","R-1126","R-1084","R-1151","R-1345","R-1362","R-1287","R-1375","R-1428","R-1395","R-1460","R-1386","R-1387","R-1411","R-1253","R-1149","R-1187","R-1429","R-1445","R-1435","R-1127","R-1159","R-1188","R-1214","R-1056","R-1020","R-1030","R-1042","R-1236","R-1278","R-1398","R-1040","R-1022","R-1031","R-1508","R-1033","R-1067","R-1016","R-1377","R-1181","R-1272","R-1427","R-1013","R-1021","R-1094","R-1100","R-1293","R-1358","R-1039","R-1097","R-1143","R-1330","R-1333","R-1472","R-1495","R-1475","R-1538","R-1106","R-1183","R-1288","R-1029","R-1400","R-1041","R-1363","R-1365","R-1407","R-1426","R-1219","R-1501","R-1491","R-1128","R-1281","R-1076","R-1452","R-1343","R-1344","R-1484","R-1516","R-1420","R-1034","R-1063","R-1422","R-1180","R-1207","R-1057","R-1050","R-1271","R-1304","R-1421","R-1442","R-1129","R-1053","R-1073","R-1110","R-1204","R-1301","R-1383","R-1430","R-1537","R-1123","R-1290","R-1306","R-1225","R-1108","R-1376","R-1004","R-1069","R-1066","R-1170","R-1238","R-1434","R-1436","R-1404","R-1409","R-1526","R-1098","R-1390","R-1480","R-1119","R-1226","R-1432","R-1464","R-1425","R-1071","R-1150","R-1285","R-1121","R-1107","R-1233","R-1329","R-1536","R-1418","R-1077","R-1199","R-1266","R-1371","R-1316","R-1511","R-1052","R-1198","R-1496","R-1451","R-1074","R-1083","R-1311","R-1349","R-1446","R-1561","R-1038","R-1146","R-1241","R-1264","R-1503","R-1498","R-1419","R-1504","R-1023","R-1140","R-1088","R-1134","R-1252","R-1326","R-1257","R-1355","R-1441","R-1490","R-1481","R-1555","R-1142","R-1202","R-1485","R-1338","R-1105"]
+
+    self.cfg = cfg
+    # Create EvalDict
+    pairwiseEvalDict = OrderedDict()
+
+    # Build dictionary
+    # For each groundtruth class
+    for gt_sharkClass in self.ClassList:
+      # Create
+      pairwiseEvalDict[gt_sharkClass] = OrderedDict()
+      # For each pred class
+      for pred_sharkClass in self.ClassList:
+        # Map to a triple
+        pairwiseEvalDict[gt_sharkClass][pred_sharkClass] = {"ave_confidence": 0.0, "tot_confidence": 0.0, "tot_num": 0}
+
+    # # Each ground turth class maps to a dict of all predicted classes
+    # subPairwiseEvalDict = pairwiseEvalDict.copy()
+    # for sharkClass in self.ClassList:
+    #   pairwiseEvalDict[sharkClass] = subPairwiseEvalDict.copy()
+
+    # # For each predicted class in each ground truth class, create three variables
+    # for gtClass in pairwiseEvalDict.keys():
+    #   for predClass in pairwiseEvalDict[gtClass].keys():
+    #     pairwiseEvalDict[gtClass][predClass] = {"ave_confidence": 0.0, "tot_confidence":0.0, "tot_num": 0}
+
+    self.evalDict = pairwiseEvalDict
+
+
+  def reset(self):
+    pass
+
+  def process(self, inputs, outputs):
+    # raise NotImplementedError()
+    for input,output in zip(inputs,outputs):
+
+      ################################
+      # Groundtruth
+      ################################
+      # Get out mapped instances
+      mapped_instances = input["instances"]
+      # Get the transformed groundtruth bboxes
+      mapped_gt_box     = mapped_instances.get("gt_boxes").to(device)
+      mapped_gt_classes = mapped_instances.get("gt_classes")
+      mapped_gt_shark_class   = self.ClassList[mapped_gt_classes[0].item()]
+
+
+      ################################
+      # Predictions
+      ################################
+      # Get predictions out
+      instances = output["instances"]
+      predicted_scores  = list(instances.get("scores"))
+      # predicted_boxes   = instances.get("pred_boxes")
+      predicted_classes = list(instances.get("pred_classes"))
+      predicted_classes_scores = {self.ClassList[pred_class]:pred_score for pred_class,pred_score in zip(predicted_classes,predicted_scores)}
+
+     
+      ################################
+      # Evaluation
+      ################################
+      # Dictionary mapping each predicted shark class to a confidence score
+      predictions = OrderedDict()
+      for pred_class in self.ClassList:
+        if(pred_class in predicted_classes_scores):
+          predictions[pred_class] = predicted_classes_scores[pred_class]
+        else:
+          predictions[pred_class] = 0.0
+
+      # For each predicted class in this groundtruth shark class
+      for pred_class in self.evalDict[mapped_gt_shark_class].keys():
+        # Update the total confidence and number
+        self.evalDict[mapped_gt_shark_class][pred_class]["tot_confidence"] = self.evalDict[mapped_gt_shark_class][pred_class]["tot_confidence"] + predictions[pred_class]
+        self.evalDict[mapped_gt_shark_class][pred_class]["tot_num"] = self.evalDict[mapped_gt_shark_class][pred_class]["tot_num"] + 1
+
+  def evaluate(self):
+    # Calcuate the average confidence of each
+    for gt_class in self.evalDict.keys():
+      for pred_class in self.evalDict[gt_class].keys():
+        self.evalDict[gt_class][pred_class]["ave_confidence"] = float(self.evalDict[gt_class][pred_class]["tot_confidence"]) / float(self.evalDict[gt_class][pred_class]["tot_num"])
+
+    # DO NOT SORT: It is in size order already
+    # Sort each groundtruth's predicted values by their average confidence (descending)
+    # for gt_class in self.evalDict.keys():
+      # self.evalDict[gt_class] = OrderedDict(sorted(self.evalDict[gt_class].items(), key=lambda item: item[1]["ave_confidence"], reverse=True))
+
+    return self.evalDict
+
+
+
 class TopKAccuracy(DatasetEvaluator):
   def __init__(self, getter, dataset_used, cfg=None, k=5, output_images=False):
     self.k = k
@@ -745,6 +840,9 @@ class MyEvaluator():
 
     return evaluation_results
 
+  def EvaluatePairwise(self,testOrTrain):
+    pairwiseEvaluator = Pairwise(self.getter,self.cfg)
+    return self.BaseEvaluate(testOrTrain,pairwiseEvaluator)
 
   def EvaluateBootstrapper(self,easy_to_hard=True):
     bootstrapper = Bootstrapper()

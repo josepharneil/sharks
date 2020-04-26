@@ -430,8 +430,25 @@ def EvaluateAPatIOU(IOU):
 #   if(i == 1):
 #     testAccAt1 = str(accResult["accuracy"]) + "%"
 
+# PrintAndWriteToParams("Evaluating test top 1... \n","a+")
+# result = myEvaluator.EvaluateTopKAccuracyFilenames(testOrTrain="test",numK=1)
+# PrintAndWriteToParams("Evaluating train top 1... \n","a+")
+# result = myEvaluator.EvaluateTopKAccuracyFilenames(testOrTrain="train",numK=1)
+
+# PrintAndWriteToParams("Evaluating test top 10... \n","a+")
 # result = myEvaluator.EvaluateTopKAccuracyFilenames(testOrTrain="test",numK=10)
-result = myEvaluator.EvaluateTopKAccuracyFilenames(testOrTrain="train",numK=10)
+# PrintAndWriteToParams("Evaluating train top 10... \n","a+")
+# result = myEvaluator.EvaluateTopKAccuracyFilenames(testOrTrain="train",numK=10)
+
+PrintAndWriteToParams("Pairwise on Test:\n","a+")
+testPairwiseResult = myEvaluator.EvaluatePairwise("test")
+torch.save(testPairwiseResult,cfg.OUTPUT_DIR+"/test-pairwise_dict.pt")
+PrintAndWriteToParams("FINISHED Pairwise on Test:\n","a+")
+
+PrintAndWriteToParams("Pairwise on Train:\n","a+")
+trainPairwiseResult = myEvaluator.EvaluatePairwise("train")
+torch.save(trainPairwiseResult,cfg.OUTPUT_DIR+"/train-pairwise_dict.pt")
+PrintAndWriteToParams("FINISHED Pairwise on Train:\n","a+")
 
 # evaluationDict["acc"] = KAccDict
 # torch.save(evaluationDict,cfg.OUTPUT_DIR+"/evaluationDictionary.pt")
